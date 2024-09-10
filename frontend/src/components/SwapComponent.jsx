@@ -1,70 +1,103 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from 'react';
-import { FaEthereum, FaTimes } from 'react-icons/fa';
-import { BiGasPump } from 'react-icons/bi';
+import { useState, useEffect, useCallback } from "react";
+import { FaEthereum, FaTimes } from "react-icons/fa";
+import { BiGasPump } from "react-icons/bi";
+import Image from "next/image";
+import { debounce } from "lodash";
+import { fetchOneToOnePrice } from "@/service/jupiter-service";
 
-const SwapComponent = () => {
-  const [fromTokens, setFromTokens] = useState([{ token: 'ETH', value: '1' }]);
-  const [toTokens, setToTokens] = useState([{ token: 'aArbAAVE', value: '17.0603' }]);
-  const [gasEstimate, setGasEstimate] = useState('963K (~$0.03)');
-  const [minimumReceived, setMinimumReceived] = useState('2,332.7522 USD');
-  const [availableTokens, setAvailableTokens] = useState([]);
+const SwapComponent = ({ availableTokens }) => {
+  const [fromTokens, setFromTokens] = useState([
+    { token: "", value: "", uri: "" },
+  ]);
+  const [toTokens, setToTokens] = useState([{ token: "", value: "", uri: "" }]);
+  const [gasEstimate, setGasEstimate] = useState("963K (~$0.03)");
+  const [minimumReceived, setMinimumReceived] = useState("2,332.7522 USD");
 
-  useEffect(() => {
-    fetchAvailableTokens();
-  }, []);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const fetchAvailableTokens = async () => {
-    try {
-      // TODO: Replace with actual API call
-      const response = await new Promise(resolve => setTimeout(() => resolve([
-        { symbol: 'ETH', name: 'Ethereum' },
-        { symbol: 'aArbAAVE', name: 'Arbirtrum AAVE' },
-        { symbol: 'USDC', name: 'USD Coin' },
-        { symbol: 'WBTC', name: 'Wrapped Bitcoin' },
-      ]), 1000));
-      setAvailableTokens(response);
-    } catch (error) {
-      console.error('Error fetching available tokens:', error);
-    }
-  };
+  const fetchPrice = useCallback(
+    debounce(async (fromToken, toToken, amount) => {
+      if (!fromToken || !toToken) return;
+
+      setIsLoading(true);
+      try {
+        const price = await fetchOneToOnePrice(fromToken, toToken);
+
+    
+        setToTokens((prevTokens) => {
+          const newTokens = [...prevTokens];
+          newTokens[0].value = amount ? price*amount : '';
+          return newTokens;
+        });
+      } catch (error) {
+        console.error("Error fetching conversion:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    }, 500),
+    []
+  );
 
   const handleAddToken = (direction) => {
-    if (direction === 'from') {
-      setFromTokens([...fromTokens, { token: '', value: '' }]);
+    if (direction === "from") {
+      setFromTokens([...fromTokens, { token: "", value: "", uri: "" }]);
     } else {
-      setToTokens([...toTokens, { token: '', value: '' }]);
+      setToTokens([...toTokens, { token: "", value: "", uri: "" }]);
     }
   };
 
   const handleDeleteToken = (index, direction) => {
-    if (direction === 'from') {
+    if (direction === "from") {
       const newFromTokens = fromTokens.filter((_, i) => i !== index);
-      setFromTokens(newFromTokens.length ? newFromTokens : [{ token: '', value: '' }]);
+      setFromTokens(
+        newFromTokens.length
+          ? newFromTokens
+          : [{ token: "", value: "", uri: "" }]
+      );
     } else {
       const newToTokens = toTokens.filter((_, i) => i !== index);
-      setToTokens(newToTokens.length ? newToTokens : [{ token: '', value: '' }]);
+      setToTokens(
+        newToTokens.length ? newToTokens : [{ token: "", value: "", uri: "" }]
+      );
     }
   };
 
   const handleTokenChange = (index, value, direction) => {
-    if (direction === 'from') {
+    let logoURI = null;
+    console.log("HELLO");
+    const tokenEntry = availableTokens.find((token) => token.symbol === value);
+    console.log(tokenEntry);
+    if (tokenEntry) {
+      logoURI = tokenEntry.logoURI;
+    }
+
+    if (direction === "from") {
       const newFromTokens = [...fromTokens];
       newFromTokens[index].token = value;
+      newFromTokens[index].uri = logoURI ? logoURI : "";
+
       setFromTokens(newFromTokens);
     } else {
       const newToTokens = [...toTokens];
       newToTokens[index].token = value;
+      newToTokens[index].uri = logoURI ? logoURI : "";
       setToTokens(newToTokens);
     }
   };
 
   const handleValueChange = (index, value, direction) => {
-    if (direction === 'from') {
+    if (direction === "from") {
       const newFromTokens = [...fromTokens];
       newFromTokens[index].value = value;
       setFromTokens(newFromTokens);
+      console.log("HELLO WORLD")
+      if(toTokens[0]) {
+        console.log("HELLo")
+        fetchPrice(fromTokens[0].token, toTokens[0].token, value);
+      }
+
     } else {
       const newToTokens = [...toTokens];
       newToTokens[index].value = value;
@@ -74,24 +107,34 @@ const SwapComponent = () => {
 
   const handleSwap = () => {
     // TODO: Implement swap logic
-    console.log('Swap initiated', { fromTokens, toTokens });
+    console.log("Swap initiated", { fromTokens, toTokens });
   };
 
   const renderTokenInputs = (tokens, direction) => {
     return tokens.map((token, index) => (
       <div key={index} className="flex items-center space-x-4 mb-4">
-        <div className="relative flex-grow">
+        <div className="flex items-center flex-grow">
+          {token.uri !== "" && (
+            <img
+              src={token.uri}
+              alt="Token Logo"
+              className="w-6 h-6 mr-2 rounded-full"
+            />
+          )}
           <select
             value={token.token}
-            onChange={(e) => handleTokenChange(index, e.target.value, direction)}
-            className="w-full bg-gray-800 rounded-md py-2 pl-10 pr-3 appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+            onChange={(e) =>
+              handleTokenChange(index, e.target.value, direction)
+            }
+            className="w-full bg-gray-800 rounded-md py-2 px-3 appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="">Select Token</option>
             {availableTokens.map((t) => (
-              <option key={t.symbol} value={t.symbol}>{t.name} ({t.symbol})</option>
+              <option key={t.symbol} value={t.symbol}>
+                {t.name} ({t.symbol})
+              </option>
             ))}
           </select>
-          <FaEthereum className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
         </div>
         <input
           type="number"
@@ -119,9 +162,9 @@ const SwapComponent = () => {
         {/* From Section */}
         <div>
           <label className="block text-sm font-medium mb-2">From</label>
-          {renderTokenInputs(fromTokens, 'from')}
+          {renderTokenInputs(fromTokens, "from")}
           <button
-            onClick={() => handleAddToken('from')}
+            onClick={() => handleAddToken("from")}
             className="text-blue-500 hover:text-blue-400 text-sm mt-2"
           >
             + Select Multiple Tokens
@@ -131,9 +174,9 @@ const SwapComponent = () => {
         {/* To Section */}
         <div>
           <label className="block text-sm font-medium mb-2">To</label>
-          {renderTokenInputs(toTokens, 'to')}
+          {renderTokenInputs(toTokens, "to")}
           <button
-            onClick={() => handleAddToken('to')}
+            onClick={() => handleAddToken("to")}
             className="text-blue-500 hover:text-blue-400 text-sm mt-2"
           >
             + Select Multiple Tokens
