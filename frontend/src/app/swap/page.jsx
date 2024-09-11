@@ -10,7 +10,7 @@ const SwapPage = async () => {
   return (
     <div>
       <Navbar />
-      <div className="container mx-auto mt-8">
+      <div className=" container mx-auto mt-8 " >
         <SwapComponent availableTokens={availableTokens}/>
       </div>
     </div>

@@ -8,6 +8,12 @@ import { Sheet, SheetContent, SheetTrigger } from "../app/ui/sheet";
 import ConnectWalletButton from "./CnnectWalletButton";
 
 const Navbar = () => {
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const toggleMenu = () => {
+    setMenuOpen(!menuOpen);
+  };
+
   return (
     <div className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container h-20 relative">
@@ -22,10 +28,10 @@ const Navbar = () => {
           {/* DISPLAY THE MENU FOR DESKTOP */}
           {/* ============================ */}
           <div className="hidden lg:flex gap-10 text-lg font-semibold">
-            <NavLink href="/">Home</NavLink>
-            <NavLink href="/">Swap Tokens</NavLink>
-            <NavLink href="/">Team</NavLink>
-            <NavLink href="/contact">Contact Us</NavLink>
+            <Link href="/" className="hover:text-blue-500">Home</Link>
+            <Link href="/" className="hover:text-blue-500">Swap Tokens</Link>
+            <Link href="/" className="hover:text-blue-500">Team</Link>
+            <Link href="/contact" className="hover:text-blue-500">Contact Us</Link>
           </div>
           <div className="hidden lg:flex gap-6 rounded-full bg-blue-200 px-4 py-2 hover:bg-blue-400 font-bold">
             <ConnectWalletButton />
@@ -37,7 +43,7 @@ const Navbar = () => {
             <Sheet open={menuOpen} onOpenChange={toggleMenu}>
               <SheetTrigger asChild>
                 <Button size="sm" variant="secondary" onClick={toggleMenu}>
-                  {menuOpen ? <></> : <Menu />}
+                  {menuOpen ? <X /> : <Menu />}
                 </Button>
               </SheetTrigger>
               <SheetContent>
@@ -46,9 +52,9 @@ const Navbar = () => {
                     <Image src="/logos.svg" width={175} height={100} alt="logo" />
                   </Link>
                   <div className="flex mt-10 flex-col gap-6 text-lg font-semibold">
-                    <NavLink href="/">Home</NavLink>
-                    <NavLink href="/">Swap Token</NavLink>
-                    <NavLink href="/">Team</NavLink>
+                    <Link href="/" className="hover:text-blue-500">Home</Link>
+                    <Link href="/" className="hover:text-blue-500">Swap Token</Link>
+                    <Link href="/" className="hover:text-blue-500">Team</Link>
                   </div>
                   <div className="mt-10 flex gap-6">
                     <ConnectWalletButton />
@@ -58,9 +64,8 @@ const Navbar = () => {
             </Sheet>
           </div>
         </div>
-        <ConnectWalletButton />
       </div>
-    </nav>
+    </div>
   );
 };
 

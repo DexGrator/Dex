@@ -1,13 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { FaEthereum, FaTimes } from "react-icons/fa";
-import { BiGasPump } from "react-icons/bi";
-import Image from "next/image";
-import { debounce } from "lodash";
-import { fetchOneToOnePrice } from "@/service/jupiter-service";
+import { useState, useCallback } from "react";
+import { FaTimes } from "react-icons/fa";
+import { BiGasPump, BiDollar, BiCoin } from "react-icons/bi";
 import Slider from 'rc-slider';
 import 'rc-slider/assets/index.css';
+import { debounce } from "lodash";
+import { fetchOneToOnePrice } from "@/service/jupiter-service";
 
 const SwapComponent = ({ availableTokens }) => {
   const [fromTokens, setFromTokens] = useState([
@@ -16,7 +15,6 @@ const SwapComponent = ({ availableTokens }) => {
   const [toTokens, setToTokens] = useState([{ token: "", value: "", uri: "", percentage: 100 }]);
   const [gasEstimate, setGasEstimate] = useState("963K (~$0.03)");
   const [minimumReceived, setMinimumReceived] = useState("2,332.7522 USD");
-
   const [isLoading, setIsLoading] = useState(false);
 
   const fetchPrice = useCallback(
@@ -148,45 +146,50 @@ const SwapComponent = ({ availableTokens }) => {
 
   const renderTokenInputs = (tokens, direction) => {
     return tokens.map((token, index) => (
-      <div key={index} className="flex items-center space-x-4 mb-4">
-        <div className="flex items-center flex-grow">
-          {token.uri !== "" && (
-            <img
-              src={token.uri}
-              alt="Token Logo"
-              className="w-6 h-6 mr-2 rounded-full"
-            />
-          )}
-          <select
-            value={token.token}
-            onChange={(e) =>
-              handleTokenChange(index, e.target.value, direction)
-            }
-            className="w-full bg-gray-800 rounded-md py-2 px-3 appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">Select Token</option>
-            {availableTokens.map((t) => (
-              <option key={t.symbol} value={t.symbol}>
-                {t.name} ({t.symbol})
-              </option>
-            ))}
-          </select>
+      <div key={index} className="space-y-4 mb-6">
+        <div className="flex flex-col space-y-2">
+          <div className="flex items-center space-x-4">
+            {token.uri !== "" && (
+              <img
+                src={token.uri}
+                alt="Token Logo"
+                className="w-6 h-6 rounded-full"
+              />
+            )}
+            <select
+              value={token.token}
+              onChange={(e) =>
+                handleTokenChange(index, e.target.value, direction)
+              }
+              className="bg-gray-800 rounded-md py-2 px-3 appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option className="w-30" value="">Select Token</option>
+              {availableTokens.map((t) => (
+                <option key={t.symbol} value={t.symbol}>
+                  {t.name} ({t.symbol})
+                </option>
+              ))}
+            </select>
+          </div>
+          <input
+            type="number"
+            value={token.value}
+            onChange={(e) => handleValueChange(index, e.target.value, direction)}
+            className="bg-gray-800 rounded-md py-2 px-3 w-30 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="Amount"
+          />
         </div>
-        <input
-          type="number"
-          value={token.value}
-          onChange={(e) => handleValueChange(index, e.target.value, direction)}
-          className="flex-grow bg-gray-800 rounded-md py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          placeholder="Amount"
-        />
-        <Slider
-          min={0}
-          max={100}
-          step={1}
-          value={token.percentage}
-          onChange={(value) => handlePercentageChange(index, value, direction)}
-          className="w-40 mx-2"
-        />
+        <div className="flex items-center">
+          <Slider
+            min={0}
+            max={100}
+            step={1}
+            value={token.percentage}
+            onChange={(value) => handlePercentageChange(index, value, direction)}
+            className="w-3/4 mx-2"
+          />
+          <span className="text-gray-400">{token.percentage}%</span>
+        </div>
         <button
           onClick={() => handleDeleteToken(index, direction)}
           className="text-gray-400 hover:text-red-500 transition-colors duration-200"
@@ -199,10 +202,10 @@ const SwapComponent = ({ availableTokens }) => {
   };
 
   return (
-    <div className="bg-gray-900 text-white rounded-lg shadow-xl p-6 w-full max-w-md">
+    <div className="bg-gray-900 text-white rounded-lg shadow-xl p-6 w-full max-w-4xl">
       <h2 className="text-2xl font-bold mb-6">Swap Tokens</h2>
 
-      <div className="space-y-6">
+      <div className="space-y-8">
         {/* From Section */}
         <div>
           <label className="block text-sm font-medium mb-2">From</label>
@@ -241,13 +244,43 @@ const SwapComponent = ({ availableTokens }) => {
           Swap Tokens
         </button>
 
-        {/* Gas Estimate */}
-        <div className="flex justify-between items-center text-sm">
-          <div className="flex items-center">
-            <BiGasPump className="text-gray-400 mr-2" />
-            <span className="text-gray-400">Gas Estimate</span>
+        {/* Additional Sections */}
+        <div className="flex flex-col space-y-4">
+          {/* Gas Estimate Section */}
+          <div className="flex justify-between items-center text-sm">
+            <div className="flex items-center">
+              <BiGasPump className="text-gray-400 mr-2" />
+              <span className="text-gray-400">Gas Estimate</span>
+            </div>
+            <span>{gasEstimate}</span>
           </div>
-          <span>{gasEstimate}</span>
+
+          {/* Max Transaction Fee Section */}
+          <div className="flex justify-between items-center text-sm">
+            <div className="flex items-center">
+              <BiDollar className="text-gray-400 mr-2" />
+              <span className="text-gray-400">Max Transaction Fee</span>
+            </div>
+            <span>maxTransactionFee</span>
+          </div>
+
+          {/* Max Transaction Fee Section */}
+          <div className="flex justify-between items-center text-sm">
+            <div className="flex items-center">
+              <BiDollar className="text-gray-400 mr-2" />
+              <span className="text-gray-400">Platfrom Fee</span>
+            </div>
+            <span>0.01%</span>
+          </div>
+
+          {/* Deposit Section */}
+          <div className="flex justify-between items-center text-sm">
+            <div className="flex items-center">
+              <BiCoin className="text-gray-400 mr-2" />
+              <span className="text-gray-400">Deposit</span>
+            </div>
+            <span>deposit</span>
+          </div>
         </div>
       </div>
     </div>
