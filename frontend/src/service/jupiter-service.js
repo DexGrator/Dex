@@ -1,6 +1,6 @@
 export const fetchAvailableTokens = async () => {
     try {
-        const response = await fetch("https://tokens.jup.ag/tokens?tags=birdeye-trending");
+        const response = await fetch("https://tokens.jup.ag/tokens?tags=verified");
         const tokens = await response.json();
         return tokens;
     } catch (err) {

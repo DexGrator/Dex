@@ -3,7 +3,8 @@
   "version": "0.2.0",
   "description": "A sample package.json",
   "dependencies": {
-    "@primer/css": "17.0.1"
+    "@primer/css": "17.0.1",
+    "rc-slider": "^11.1.5"
   },
   "license": "MIT"
 }
