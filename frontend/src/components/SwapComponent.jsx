@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { FaTimes } from "react-icons/fa";
 import { BiGasPump, BiDollar, BiCoin } from "react-icons/bi";
 import Slider from 'rc-slider';
@@ -19,12 +19,12 @@ const SwapComponent = ({ availableTokens }) => {
 
   const fetchPrice = useCallback(
     debounce(async (fromToken, toTokens, amount) => {
-      if (!fromToken || !toTokens.length) return;
+      if (!fromToken || !toTokens.length || !amount) return;
 
       setIsLoading(true);
       try {
         const results = await Promise.all(toTokens.map(async (toToken) => {
-          const price = await fetchOneToOnePrice(toToken.token, fromToken);
+          const price = await fetchOneToOnePrice(fromToken, toToken.token);
           return { ...toToken, value: price * amount * (toToken.percentage / 100) };
         }));
 
@@ -37,6 +37,13 @@ const SwapComponent = ({ availableTokens }) => {
     }, 500),
     []
   );
+
+  // Monitor changes to fromTokens and toTokens to trigger recalculation
+  useEffect(() => {
+    if (fromTokens.some(token => token.value) && toTokens.some(token => token.token)) {
+      fetchPrice(fromTokens[0]?.token, toTokens, fromTokens[0]?.value);
+    }
+  }, [fromTokens, toTokens, fetchPrice]);
 
   const handleAddToken = (direction) => {
     const newTokens = direction === "from" ? [...fromTokens] : [...toTokens];
@@ -101,12 +108,6 @@ const SwapComponent = ({ availableTokens }) => {
       newFromTokens[index].value = value;
       setFromTokens(newFromTokens);
 
-      const totalPercentage = toTokens.reduce((sum, token) => sum + token.percentage, 0);
-      if (totalPercentage !== 100) {
-        alert("Percentage shares must total 100%");
-        return;
-      }
-
       fetchPrice(fromTokens[index].token, toTokens, value);
     } else {
       const newToTokens = [...toTokens];
@@ -116,33 +117,38 @@ const SwapComponent = ({ availableTokens }) => {
   };
 
   const handlePercentageChange = (index, value, direction) => {
-    const tokens = direction === "from" ? [...fromTokens] : [...toTokens];
-    const totalTokens = tokens.length;
+  const tokens = direction === "from" ? [...fromTokens] : [...toTokens];
+  const totalTokens = tokens.length;
 
-    // Calculate the new percentage values
-    const newTokens = tokens.map((token, i) => {
-      if (i === index) {
-        return { ...token, percentage: value };
-      }
-      return { ...token, percentage: (100 - value) / (totalTokens - 1) };
-    });
+  // Adjust the percentage of the selected token
+  tokens[index].percentage = value;
 
-    if (direction === "from") {
-      setFromTokens(newTokens);
-    } else {
-      setToTokens(newTokens);
-    }
+  // Adjust the other tokens to make sure the total percentage is 100%
+  const remainingTokens = tokens.filter((_, i) => i !== index);
+  const remainingPercentage = 100 - value;
+  remainingTokens.forEach((token, i) => {
+    token.percentage = remainingPercentage / (totalTokens - 1);
+  });
 
-    const totalPercentage = newTokens.reduce((sum, token) => sum + token.percentage, 0);
-    if (totalPercentage !== 100) {
-      alert("Percentage shares must total 100%");
-      return;
-    }
+  // Update the correct state
+  if (direction === "from") {
+    setFromTokens(tokens);
+  } else {
+    setToTokens(tokens);
+  }
 
-    if (fromTokens[0]) {
-      fetchPrice(fromTokens[0].token, newTokens, fromTokens[0].value);
-    }
-  };
+  // Recalculate the total value for "from" tokens and trigger price conversion
+  const totalFromValue = tokens.reduce((sum, token) => {
+    return sum + (token.value * (token.percentage / 100));
+  }, 0);
+
+  if (direction === "from") {
+    fetchPrice(fromTokens[0]?.token, toTokens, totalFromValue);
+  } else {
+    fetchPrice(fromTokens[0]?.token, tokens, fromTokens[0]?.value);
+  }
+};
+
 
   const renderTokenInputs = (tokens, direction) => {
     return tokens.map((token, index) => (
@@ -268,7 +274,7 @@ const SwapComponent = ({ availableTokens }) => {
           <div className="flex justify-between items-center text-sm">
             <div className="flex items-center">
               <BiDollar className="text-gray-400 mr-2" />
-              <span className="text-gray-400">Platfrom Fee</span>
+              <span className="text-gray-400">Platform Fee</span>
             </div>
             <span>0.01%</span>
           </div>
