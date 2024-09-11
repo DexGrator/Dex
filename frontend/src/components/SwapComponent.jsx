@@ -6,31 +6,31 @@ import { BiGasPump } from "react-icons/bi";
 import Image from "next/image";
 import { debounce } from "lodash";
 import { fetchOneToOnePrice } from "@/service/jupiter-service";
+import Slider from 'rc-slider';
+import 'rc-slider/assets/index.css';
 
 const SwapComponent = ({ availableTokens }) => {
   const [fromTokens, setFromTokens] = useState([
-    { token: "", value: "", uri: "" },
+    { token: "", value: "", uri: "", percentage: 100 },
   ]);
-  const [toTokens, setToTokens] = useState([{ token: "", value: "", uri: "" }]);
+  const [toTokens, setToTokens] = useState([{ token: "", value: "", uri: "", percentage: 100 }]);
   const [gasEstimate, setGasEstimate] = useState("963K (~$0.03)");
   const [minimumReceived, setMinimumReceived] = useState("2,332.7522 USD");
 
   const [isLoading, setIsLoading] = useState(false);
 
   const fetchPrice = useCallback(
-    debounce(async (fromToken, toToken, amount) => {
-      if (!fromToken || !toToken) return;
+    debounce(async (fromToken, toTokens, amount) => {
+      if (!fromToken || !toTokens.length) return;
 
       setIsLoading(true);
       try {
-        const price = await fetchOneToOnePrice(fromToken, toToken);
+        const results = await Promise.all(toTokens.map(async (toToken) => {
+          const price = await fetchOneToOnePrice(toToken.token, fromToken);
+          return { ...toToken, value: price * amount * (toToken.percentage / 100) };
+        }));
 
-    
-        setToTokens((prevTokens) => {
-          const newTokens = [...prevTokens];
-          newTokens[0].value = amount ? price*amount : '';
-          return newTokens;
-        });
+        setToTokens(results);
       } catch (error) {
         console.error("Error fetching conversion:", error);
       } finally {
@@ -41,34 +41,45 @@ const SwapComponent = ({ availableTokens }) => {
   );
 
   const handleAddToken = (direction) => {
-    if (direction === "from") {
-      setFromTokens([...fromTokens, { token: "", value: "", uri: "" }]);
-    } else {
-      setToTokens([...toTokens, { token: "", value: "", uri: "" }]);
-    }
+    const newTokens = direction === "from" ? [...fromTokens] : [...toTokens];
+    const newToken = { token: "", value: "", uri: "", percentage: 100 / (newTokens.length + 1) };
+
+    newTokens.push(newToken);
+    updatePercentages(newTokens, direction);
   };
 
   const handleDeleteToken = (index, direction) => {
-    if (direction === "from") {
-      const newFromTokens = fromTokens.filter((_, i) => i !== index);
-      setFromTokens(
-        newFromTokens.length
-          ? newFromTokens
-          : [{ token: "", value: "", uri: "" }]
-      );
+    const newTokens = direction === "from" ? fromTokens.filter((_, i) => i !== index) : toTokens.filter((_, i) => i !== index);
+
+    if (newTokens.length === 0) {
+      newTokens.push({ token: "", value: "", uri: "", percentage: 100 });
     } else {
-      const newToTokens = toTokens.filter((_, i) => i !== index);
-      setToTokens(
-        newToTokens.length ? newToTokens : [{ token: "", value: "", uri: "" }]
-      );
+      updatePercentages(newTokens, direction);
+    }
+
+    if (direction === "from") {
+      setFromTokens(newTokens);
+    } else {
+      setToTokens(newTokens);
+    }
+  };
+
+  const updatePercentages = (tokens, direction) => {
+    const totalTokens = tokens.length;
+    const newPercentage = 100 / totalTokens;
+
+    tokens.forEach(token => token.percentage = newPercentage);
+
+    if (direction === "from") {
+      setFromTokens(tokens);
+    } else {
+      setToTokens(tokens);
     }
   };
 
   const handleTokenChange = (index, value, direction) => {
     let logoURI = null;
-    console.log("HELLO");
     const tokenEntry = availableTokens.find((token) => token.symbol === value);
-    console.log(tokenEntry);
     if (tokenEntry) {
       logoURI = tokenEntry.logoURI;
     }
@@ -77,7 +88,6 @@ const SwapComponent = ({ availableTokens }) => {
       const newFromTokens = [...fromTokens];
       newFromTokens[index].token = value;
       newFromTokens[index].uri = logoURI ? logoURI : "";
-
       setFromTokens(newFromTokens);
     } else {
       const newToTokens = [...toTokens];
@@ -92,12 +102,14 @@ const SwapComponent = ({ availableTokens }) => {
       const newFromTokens = [...fromTokens];
       newFromTokens[index].value = value;
       setFromTokens(newFromTokens);
-      console.log("HELLO WORLD")
-      if(toTokens[0]) {
-        console.log("HELLo")
-        fetchPrice(fromTokens[0].token, toTokens[0].token, value);
+
+      const totalPercentage = toTokens.reduce((sum, token) => sum + token.percentage, 0);
+      if (totalPercentage !== 100) {
+        alert("Percentage shares must total 100%");
+        return;
       }
 
+      fetchPrice(fromTokens[index].token, toTokens, value);
     } else {
       const newToTokens = [...toTokens];
       newToTokens[index].value = value;
@@ -105,9 +117,33 @@ const SwapComponent = ({ availableTokens }) => {
     }
   };
 
-  const handleSwap = () => {
-    // TODO: Implement swap logic
-    console.log("Swap initiated", { fromTokens, toTokens });
+  const handlePercentageChange = (index, value, direction) => {
+    const tokens = direction === "from" ? [...fromTokens] : [...toTokens];
+    const totalTokens = tokens.length;
+
+    // Calculate the new percentage values
+    const newTokens = tokens.map((token, i) => {
+      if (i === index) {
+        return { ...token, percentage: value };
+      }
+      return { ...token, percentage: (100 - value) / (totalTokens - 1) };
+    });
+
+    if (direction === "from") {
+      setFromTokens(newTokens);
+    } else {
+      setToTokens(newTokens);
+    }
+
+    const totalPercentage = newTokens.reduce((sum, token) => sum + token.percentage, 0);
+    if (totalPercentage !== 100) {
+      alert("Percentage shares must total 100%");
+      return;
+    }
+
+    if (fromTokens[0]) {
+      fetchPrice(fromTokens[0].token, newTokens, fromTokens[0].value);
+    }
   };
 
   const renderTokenInputs = (tokens, direction) => {
@@ -143,6 +179,14 @@ const SwapComponent = ({ availableTokens }) => {
           className="flex-grow bg-gray-800 rounded-md py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
           placeholder="Amount"
         />
+        <Slider
+          min={0}
+          max={100}
+          step={1}
+          value={token.percentage}
+          onChange={(value) => handlePercentageChange(index, value, direction)}
+          className="w-40 mx-2"
+        />
         <button
           onClick={() => handleDeleteToken(index, direction)}
           className="text-gray-400 hover:text-red-500 transition-colors duration-200"
@@ -167,7 +211,7 @@ const SwapComponent = ({ availableTokens }) => {
             onClick={() => handleAddToken("from")}
             className="text-blue-500 hover:text-blue-400 text-sm mt-2"
           >
-            + Select Multiple Tokens
+            + Add Token
           </button>
         </div>
 
@@ -179,7 +223,7 @@ const SwapComponent = ({ availableTokens }) => {
             onClick={() => handleAddToken("to")}
             className="text-blue-500 hover:text-blue-400 text-sm mt-2"
           >
-            + Select Multiple Tokens
+            + Add Token
           </button>
         </div>
 
@@ -191,7 +235,7 @@ const SwapComponent = ({ availableTokens }) => {
 
         {/* Connect Wallet Button */}
         <button
-          onClick={handleSwap}
+          onClick={() => console.log("Swap initiated", { fromTokens, toTokens })}
           className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md transition duration-300 ease-in-out"
         >
           Swap Tokens

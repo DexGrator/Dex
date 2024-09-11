@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
     images: {
+        domains: ['nftstorage.link'],
         remotePatterns: [
             {
                 protocol: "https",
