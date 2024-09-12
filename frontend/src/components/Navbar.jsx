@@ -5,7 +5,8 @@ import Image from "next/image";
 import { Button } from "../app/ui/buttons";
 import { Menu, X } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "../app/ui/sheet";
-import ConnectWalletButton from "./CnnectWalletButton";
+import SolanaWalletConnect  from "./SolanaWalletConnect.js";
+
 
 const Navbar = () => {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -33,8 +34,8 @@ const Navbar = () => {
             <Link href="/" className="hover:text-blue-500">Team</Link>
             <Link href="/contact" className="hover:text-blue-500">Contact Us</Link>
           </div>
-          <div className="hidden lg:flex gap-6 rounded-full bg-blue-200 px-4 py-2 hover:bg-blue-400 font-bold">
-            <ConnectWalletButton />
+          <div className="">
+            <SolanaWalletConnect  />
           </div>
           {/* =========================== */}
           {/* DISPLAY THE MENU FOR MOBILE */}
@@ -56,9 +57,7 @@ const Navbar = () => {
                     <Link href="/" className="hover:text-blue-500">Swap Token</Link>
                     <Link href="/" className="hover:text-blue-500">Team</Link>
                   </div>
-                  <div className="mt-10 flex gap-6">
-                    <ConnectWalletButton />
-                  </div>
+                  
                 </div>
               </SheetContent>
             </Sheet>
