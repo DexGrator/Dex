@@ -5,7 +5,7 @@ import Image from "next/image";
 import { Button } from "../app/ui/buttons";
 import { Menu, X } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "../app/ui/sheet";
-import SolanaWalletConnect  from "./SolanaWalletConnect.js";
+import SolanaWalletConnect  from "./SolanaWalletConnect.jsx";
 
 
 const Navbar = () => {

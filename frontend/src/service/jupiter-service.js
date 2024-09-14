@@ -13,8 +13,7 @@ export const fetchOneToOnePrice = async (toToken, vsToken) => {
     try {
         const response = await fetch(`https://price.jup.ag/v6/price?ids=${toToken}&vsToken=${vsToken}`);
         const priceData = await response.json();
-        console.log(priceData);
-        console.log(priceData.data[toToken]);
+        
 
         return priceData.data[toToken].price;
     } catch (err) {
