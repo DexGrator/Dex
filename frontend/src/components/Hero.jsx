@@ -1,13 +1,14 @@
 "use client"
 import { Button } from "@/app/ui/buttons";
 import React from "react";
+import Image from "next/image";
 
 const Hero = () => {
   return (
     <div className="h-[90vh] flex flex-col lg:flex-row items-center justify-center lg:space-x-8">
       {/* Video Section */}
       <div className="w-full lg:w-1/2">
-        <video
+        {/* <video
           autoPlay
           loop
           muted
@@ -18,7 +19,9 @@ const Hero = () => {
             src="https://assets.odos.xyz/SwapAnimation.mp4"
             type="video/mp4"
           />
-        </video>
+        </video> */}
+
+        <Image src={"/JohnCenaVibingToCupid.gif"} height={300} width={700} />
       </div>
 
       {/* Text Section */}

@@ -195,85 +195,79 @@ const SwapComponent = ({ availableTokens }) => {
   );
 
   // Function to Render Token Inputs
-  const renderTokenInputs = (tokens, direction) => {
-    return tokens.map((token, index) => (
-      <div key={index} className="space-y-4 mb-6">
-        {/* Token Selection and Value Input */}
-        <div className="flex flex-col space-y-2">
-          <div className="flex items-center space-x-4">
-            {/* Token Logo */}
-            {token.uri !== "" && (
-              <img
-                src={token.uri}
-                alt="Token Logo"
-                className="w-6 h-6 rounded-full"
-              />
-            )}
-            <div className="flex flex-col w-full">
-
-              {/* Token Dropdown */}
-              <select
-                value={token.token}
-                onChange={(e) =>
-                  handleTokenChange(index, e.target.value, direction)
-                }
-                className="bg-gray-800 rounded-md py-2 px-3 appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option className="w-30" value="">
-                  Select Token
-                </option>
-                {(direction === "from" ? filteredFromTokens : filteredToTokens).map(
-                  (t) => (
-                    <option key={t.symbol} value={t.symbol}>
-                      {t.name} ({t.symbol})
-                    </option>
-                  )
-                )}
-              </select>
-            </div>
-          </div>
-          {/* Amount Input */}
-          <input
-            type="number"
-            value={token.value}
-            onChange={(e) =>
-              handleValueChange(index, e.target.value, direction)
-            }
-            className="bg-gray-800 rounded-md py-2 px-3 w-30 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Amount"
+  // Function to Render Token Inputs
+const renderTokenInputs = (tokens, direction) => {
+  return tokens.map((token, index) => (
+    <div key={index} className="space-y-4 mb-6 overflow-hidden">
+      {/* Token Selection and Value Input */}
+      <div className="flex flex-col space-y-2 overflow-hidden">
+        <div className="flex items-center space-x-4">
+          {/* Token Logo */}
+          <img
+            src={token.uri !== "" ? token.uri : "/path/to/placeholder-image.png"}
+            alt="Token Logo"
+            className="w-6 h-6 rounded-full"
           />
+          <div className="flex flex-col w-full ">
+            {/* Token Dropdown */}
+            <select
+              value={token.token}
+              onChange={(e) =>
+                handleTokenChange(index, e.target.value, direction)
+              }
+              className="bg-gray-800 rounded-md py-2 px-3 appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option className="w-30" value="">
+                Select Token
+              </option>
+              {(direction === "from"
+                ? filteredFromTokens
+                : filteredToTokens
+              ).map((t) => (
+                <option key={t.symbol} value={t.symbol}>
+                  {t.name} ({t.symbol})
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
-
-        {/* Conditional Slider Rendering */}
-        {token.token !== "" &&
-          ((direction === "from" && fromTokens.length > 1) ||
-            (direction === "to" && toTokens.length > 1)) && (
-            <div className="flex items-center">
-              <Slider
-                min={0}
-                max={100}
-                step={1}
-                value={token.percentage}
-                onChange={(value) =>
-                  handlePercentageChange(index, value, direction)
-                }
-                className="w-3/4 mx-2"
-              />
-              <span className="text-gray-400">{token.percentage}%</span>
-            </div>
-          )}
-
-        {/* Delete Button */}
-        <button
-          onClick={() => handleDeleteToken(index, direction)}
-          className="text-gray-400 hover:text-red-500 transition-colors duration-200"
-          aria-label="Delete token"
-        >
-          <FaTimes />
-        </button>
+        {/* Amount Input */}
+        <input
+          type="number"
+          value={token.value}
+          onChange={(e) => handleValueChange(index, e.target.value, direction)}
+          className="bg-gray-800 rounded-md py-2 px-3 w-30 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="Amount"
+        />
       </div>
-    ));
-  };
+      {/* Conditional Slider Rendering */}
+      {token.token !== "" &&
+        ((direction === "from" && fromTokens.length > 1) ||
+          (direction === "to" && toTokens.length > 1)) && (
+        <div className="flex items-center">
+          <Slider
+            min={0}
+            max={100}
+            step={1}
+            value={token.percentage}
+            onChange={(value) => handlePercentageChange(index, value, direction)}
+            className="w-3/4 mx-2"
+          />
+          <span className="text-gray-400">{token.percentage}%</span>
+        </div>
+      )}
+      {/* Delete Button */}
+      <button
+        onClick={() => handleDeleteToken(index, direction)}
+        className="text-gray-400 hover:text-red-500 transition-colors duration-200"
+        aria-label="Delete token"
+      >
+        <FaTimes />
+      </button>
+    </div>
+  ));
+};
+
 
   return (
     <div className="bg-gray-900 text-white rounded-lg shadow-xl p-6 w-full max-w-4xl">

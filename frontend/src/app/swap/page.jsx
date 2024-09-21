@@ -8,10 +8,12 @@ const SwapPage = async () => {
   const availableTokens = await fetchAvailableTokens();
 
   return (
-    <div>
+    <div className="bg-[#021524]"> 
       <Navbar />
-      <div className=" container mx-auto mt-8 " >
-        <SwapComponent availableTokens={availableTokens}/>
+      <div className="flex justify-center items-center min-h-screen" style={{ paddingTop: '0.5rem' }}>
+        <div className="w-full max-w-lg">
+          <SwapComponent availableTokens={availableTokens} />
+        </div>
       </div>
     </div>
   );
