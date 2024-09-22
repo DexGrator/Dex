@@ -31,6 +31,7 @@ const Navbar = () => {
           <div className="hidden lg:flex gap-10 text-lg font-semibold text-white">
             <Link href="/" className="hover:text-blue-500">Home</Link>
             <Link href="/swap" className="hover:text-blue-500">Swap Tokens</Link>
+            <Link href="/payments" className="hover:text-blue-500">Payments</Link>
             <Link href="/" className="hover:text-blue-500">Team</Link>
             <Link href="/contact" className="hover:text-blue-500">Contact Us</Link>
           </div>
@@ -58,6 +59,9 @@ const Navbar = () => {
                     </Link>
                     <Link href="/swap">
                       <Button className="hover:text-blue-500 p-4  border border-transparent rounded-full">Swap Token</Button>
+                    </Link>
+                    <Link href="/payments">
+                      <Button className="hover:text-blue-500 p-4  border border-transparent rounded-full">Payments</Button>
                     </Link>
                     <Link href="/">
                       <Button className="hover:text-blue-500 p-4 border border-transparent rounded-full">Team</Button>

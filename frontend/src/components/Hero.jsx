@@ -7,21 +7,8 @@ const Hero = () => {
   return (
     <div className="h-[90vh] flex flex-col lg:flex-row items-center justify-center lg:space-x-8">
       {/* Video Section */}
-      <div className="w-full lg:w-1/2">
-        {/* <video
-          autoPlay
-          loop
-          muted
-          playsInline
-          style={{ width: "100%", height: "100%" }}
-        >
-          <source
-            src="https://assets.odos.xyz/SwapAnimation.mp4"
-            type="video/mp4"
-          />
-        </video> */}
-
-        <Image src={"/JohnCenaVibingToCupid.gif"} height={300} width={700} />
+      <div className="w-full lg:w-1/2 flex justify-center items-center">
+        <Image src={"/cat.gif"} height={250} width={250} className="block" />
       </div>
 
       {/* Text Section */}
