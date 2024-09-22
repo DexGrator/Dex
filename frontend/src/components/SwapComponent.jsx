@@ -7,6 +7,9 @@ import Slider from "rc-slider";
 import "rc-slider/assets/index.css";
 import { debounce } from "lodash";
 import { fetchOneToOnePrice } from "@/service/jupiter-service";
+import { useWallet } from "@solana/wallet-adapter-react";
+import { VersionedTransaction } from "@solana/web3.js";
+import useSolanaConnection from "@/app/hooks/useSolanaConnect";
 
 const SwapComponent = ({ availableTokens }) => {
   // State for From Tokens
@@ -24,11 +27,71 @@ const SwapComponent = ({ availableTokens }) => {
   const [minimumReceived, setMinimumReceived] = useState("2,332.7522 USD");
   const [isLoading, setIsLoading] = useState(false);
 
-  // States for Search Inputs (Separate for From and To)
-  const [searchFrom, setSearchFrom] = useState("");
-  const [searchTo, setSearchTo] = useState("");
+  const wallet = useWallet();
+  const connection = useSolanaConnection();
 
-  // Debounced Fetch Price Function
+  const atomicSwap = (e) => {
+
+    if(!wallet.connected || !wallet.signTransaction) {
+      console.error(
+        "Wallet is not connected or does not support signing transactions"
+      );
+      console.log(wallet)
+      return;
+    }
+
+    console.log("Swap initiated", {fromTokens, toTokens})
+    const fromToken = availableTokens.find((token) => token.symbol === fromTokens[0]?.token);
+    const toToken = availableTokens.find((token) => token.symbol === toTokens[0]?.token);
+
+    console.log({fromToken, toToken})
+
+    fetch("/api/swap", {
+      method: "POST",
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        inputMint: fromToken.address,
+        outputMint: toToken.address,
+        amount: fromTokens[0].value * Math.pow(10, fromToken.decimals),
+        userPublicKey: wallet.publicKey?.toString()
+      })
+    })
+    .then(async (res) => {
+      try{
+        const {swapTransaction} = await res.json();
+        const swapTransactionBuf = Buffer.from(swapTransaction, 'base64');
+        const transaction = VersionedTransaction.deserialize(swapTransactionBuf);
+        const signedTransaction = await wallet.signTransaction(transaction)
+
+        const rawTransaction = signedTransaction.serialize();
+
+        const transactionId = await connection.sendRawTransaction(rawTransaction, {
+          skipPreflight: true, 
+          maxRetries: 2
+        });
+
+        const latestBlockHash = await connection.getLatestBlockhash();
+        await connection.confirmTransaction({
+          blockhash: latestBlockHash.blockhash,
+          lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
+          signature: transactionId
+        }, 'confirmed');
+
+
+        alert("Swap Successful!");
+        console.log(`https://solscan.io/tx/${transactionId}`);
+
+      } catch (e){ 
+        console.error("Failed to sign transaction: ", e);
+      }
+    })
+    .catch((err) => {
+      console.log(err);
+    })
+  }
+
   const fetchPrice = useCallback(
     debounce(async (fromToken, toTokens, amount) => {
       if (!fromToken || !toTokens.length || !amount) return;
@@ -217,14 +280,11 @@ const renderTokenInputs = (tokens, direction) => {
               }
               className="bg-gray-800 rounded-md py-2 px-3 appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option className="w-30" value="">
-                Select Token
-              </option>
-              {(direction === "from"
-                ? filteredFromTokens
-                : filteredToTokens
-              ).map((t) => (
-                <option key={t.symbol} value={t.symbol}>
+
+              <option className="w-30" value="">Select Token</option>
+              {availableTokens.map((t) => (
+                <option key={t.address} value={t.symbol}>
+
                   {t.name} ({t.symbol})
                 </option>
               ))}
@@ -306,9 +366,8 @@ const renderTokenInputs = (tokens, direction) => {
 
         {/* Connect Wallet Button */}
         <button
-          onClick={() =>
-            console.log("Swap initiated", { fromTokens, toTokens })
-          }
+
+          onClick={atomicSwap}
           className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md transition duration-300 ease-in-out"
         >
           Swap Tokens
