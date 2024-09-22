@@ -204,7 +204,7 @@ const renderTokenInputs = (tokens, direction) => {
         <div className="flex items-center space-x-4">
           {/* Token Logo */}
           <img
-            src={token.uri !== "" ? token.uri : "/path/to/placeholder-image.png"}
+            src={token.uri !== "" ? token.uri : "/image.png"}
             alt="Token Logo"
             className="w-6 h-6 rounded-full"
           />
