@@ -249,13 +249,13 @@ const SwapComponent = ({ availableTokens }) => {
   };
 
   // Filtered Token Lists Based on Search Inputs
-  const filteredFromTokens = availableTokens.filter((t) =>
-    t.name.toLowerCase().includes(searchFrom.toLowerCase())
-  );
+  // const filteredFromTokens = availableTokens.filter((t) =>
+  //   t.name.toLowerCase().includes(searchFrom.toLowerCase())
+  // );
 
-  const filteredToTokens = availableTokens.filter((t) =>
-    t.name.toLowerCase().includes(searchTo.toLowerCase())
-  );
+  // const filteredToTokens = availableTokens.filter((t) =>
+  //   t.name.toLowerCase().includes(searchTo.toLowerCase())
+  // );
 
   // Function to Render Token Inputs
   // Function to Render Token Inputs
