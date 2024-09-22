@@ -3,8 +3,8 @@
 import { useState, useCallback, useEffect } from "react";
 import { FaTimes } from "react-icons/fa";
 import { BiGasPump, BiDollar, BiCoin } from "react-icons/bi";
-import Slider from 'rc-slider';
-import 'rc-slider/assets/index.css';
+import Slider from "rc-slider";
+import "rc-slider/assets/index.css";
 import { debounce } from "lodash";
 import { fetchOneToOnePrice } from "@/service/jupiter-service";
 import { useWallet } from "@solana/wallet-adapter-react";
@@ -12,10 +12,17 @@ import { VersionedTransaction } from "@solana/web3.js";
 import useSolanaConnection from "@/app/hooks/useSolanaConnect";
 
 const SwapComponent = ({ availableTokens }) => {
+  // State for From Tokens
   const [fromTokens, setFromTokens] = useState([
     { token: "", value: "", uri: "", percentage: 100 },
   ]);
-  const [toTokens, setToTokens] = useState([{ token: "", value: "", uri: "", percentage: 100 }]);
+
+  // State for To Tokens
+  const [toTokens, setToTokens] = useState([
+    { token: "", value: "", uri: "", percentage: 100 },
+  ]);
+
+  // Additional States
   const [gasEstimate, setGasEstimate] = useState("963K (~$0.03)");
   const [minimumReceived, setMinimumReceived] = useState("2,332.7522 USD");
   const [isLoading, setIsLoading] = useState(false);
@@ -91,10 +98,15 @@ const SwapComponent = ({ availableTokens }) => {
 
       setIsLoading(true);
       try {
-        const results = await Promise.all(toTokens.map(async (toToken) => {
-          const price = await fetchOneToOnePrice(fromToken, toToken.token);
-          return { ...toToken, value: price * amount * (toToken.percentage / 100) };
-        }));
+        const results = await Promise.all(
+          toTokens.map(async (toToken) => {
+            const price = await fetchOneToOnePrice(fromToken, toToken.token);
+            return {
+              ...toToken,
+              value: price * amount * (toToken.percentage / 100),
+            };
+          })
+        );
 
         setToTokens(results);
       } catch (error) {
@@ -106,23 +118,37 @@ const SwapComponent = ({ availableTokens }) => {
     []
   );
 
-  // Monitor changes to fromTokens and toTokens to trigger recalculation
+  // Effect to Trigger Price Fetching
   useEffect(() => {
-    if (fromTokens.some(token => token.value) && toTokens.some(token => token.token)) {
+    if (
+      fromTokens.some((token) => token.value) &&
+      toTokens.some((token) => token.token)
+    ) {
       fetchPrice(fromTokens[0]?.token, toTokens, fromTokens[0]?.value);
     }
   }, [fromTokens, toTokens, fetchPrice]);
 
+  // Handler to Add a New Token
   const handleAddToken = (direction) => {
-    const newTokens = direction === "from" ? [...fromTokens] : [...toTokens];
-    const newToken = { token: "", value: "", uri: "", percentage: 100 / (newTokens.length + 1) };
+    const newTokens =
+      direction === "from" ? [...fromTokens] : [...toTokens];
+    const newToken = {
+      token: "",
+      value: "",
+      uri: "",
+      percentage: 100 / (newTokens.length + 1),
+    };
 
     newTokens.push(newToken);
     updatePercentages(newTokens, direction);
   };
 
+  // Handler to Delete a Token
   const handleDeleteToken = (index, direction) => {
-    const newTokens = direction === "from" ? fromTokens.filter((_, i) => i !== index) : toTokens.filter((_, i) => i !== index);
+    const newTokens =
+      direction === "from"
+        ? fromTokens.filter((_, i) => i !== index)
+        : toTokens.filter((_, i) => i !== index);
 
     if (newTokens.length === 0) {
       newTokens.push({ token: "", value: "", uri: "", percentage: 100 });
@@ -137,11 +163,12 @@ const SwapComponent = ({ availableTokens }) => {
     }
   };
 
+  // Function to Update Percentages Uniformly
   const updatePercentages = (tokens, direction) => {
     const totalTokens = tokens.length;
     const newPercentage = 100 / totalTokens;
 
-    tokens.forEach(token => token.percentage = newPercentage);
+    tokens.forEach((token) => (token.percentage = newPercentage));
 
     if (direction === "from") {
       setFromTokens(tokens);
@@ -150,9 +177,12 @@ const SwapComponent = ({ availableTokens }) => {
     }
   };
 
+  // Handler for Token Selection Change
   const handleTokenChange = (index, value, direction) => {
     let logoURI = null;
-    const tokenEntry = availableTokens.find((token) => token.symbol === value);
+    const tokenEntry = availableTokens.find(
+      (token) => token.symbol === value
+    );
     if (tokenEntry) {
       logoURI = tokenEntry.logoURI;
     }
@@ -170,6 +200,7 @@ const SwapComponent = ({ availableTokens }) => {
     }
   };
 
+  // Handler for Value Change
   const handleValueChange = (index, value, direction) => {
     if (direction === "from") {
       const newFromTokens = [...fromTokens];
@@ -184,52 +215,64 @@ const SwapComponent = ({ availableTokens }) => {
     }
   };
 
+  // Handler for Percentage Change
   const handlePercentageChange = (index, value, direction) => {
-  const tokens = direction === "from" ? [...fromTokens] : [...toTokens];
-  const totalTokens = tokens.length;
+    const tokens =
+      direction === "from" ? [...fromTokens] : [...toTokens];
+    const totalTokens = tokens.length;
 
-  // Adjust the percentage of the selected token
-  tokens[index].percentage = value;
+    tokens[index].percentage = value;
 
-  // Adjust the other tokens to make sure the total percentage is 100%
-  const remainingTokens = tokens.filter((_, i) => i !== index);
-  const remainingPercentage = 100 - value;
-  remainingTokens.forEach((token, i) => {
-    token.percentage = remainingPercentage / (totalTokens - 1);
-  });
+    // Adjust the other tokens
+    const remainingTokens = tokens.filter((_, i) => i !== index);
+    const remainingPercentage = 100 - value;
+    remainingTokens.forEach((token) => {
+      token.percentage = remainingPercentage / remainingTokens.length;
+    });
 
-  // Update the correct state
-  if (direction === "from") {
-    setFromTokens(tokens);
-  } else {
-    setToTokens(tokens);
-  }
+    if (direction === "from") {
+      setFromTokens(tokens);
+    } else {
+      setToTokens(tokens);
+    }
 
-  // Recalculate the total value for "from" tokens and trigger price conversion
-  const totalFromValue = tokens.reduce((sum, token) => {
-    return sum + (token.value * (token.percentage / 100));
-  }, 0);
+    // Recalculate the total value for "from" tokens and trigger price conversion
+    const totalFromValue = tokens.reduce((sum, token) => {
+      return sum + token.value * (token.percentage / 100);
+    }, 0);
 
-  if (direction === "from") {
-    fetchPrice(fromTokens[0]?.token, toTokens, totalFromValue);
-  } else {
-    fetchPrice(fromTokens[0]?.token, tokens, fromTokens[0]?.value);
-  }
-};
+    if (direction === "from") {
+      fetchPrice(fromTokens[0]?.token, toTokens, totalFromValue);
+    } else {
+      fetchPrice(fromTokens[0]?.token, tokens, fromTokens[0]?.value);
+    }
+  };
 
+  // Filtered Token Lists Based on Search Inputs
+  const filteredFromTokens = availableTokens.filter((t) =>
+    t.name.toLowerCase().includes(searchFrom.toLowerCase())
+  );
 
-  const renderTokenInputs = (tokens, direction) => {
-    return tokens.map((token, index) => (
-      <div key={index} className="space-y-4 mb-6">
-        <div className="flex flex-col space-y-2">
-          <div className="flex items-center space-x-4">
-            {token.uri !== "" && (
-              <img
-                src={token.uri}
-                alt="Token Logo"
-                className="w-6 h-6 rounded-full"
-              />
-            )}
+  const filteredToTokens = availableTokens.filter((t) =>
+    t.name.toLowerCase().includes(searchTo.toLowerCase())
+  );
+
+  // Function to Render Token Inputs
+  // Function to Render Token Inputs
+const renderTokenInputs = (tokens, direction) => {
+  return tokens.map((token, index) => (
+    <div key={index} className="space-y-4 mb-6 overflow-hidden">
+      {/* Token Selection and Value Input */}
+      <div className="flex flex-col space-y-2 overflow-hidden">
+        <div className="flex items-center space-x-4">
+          {/* Token Logo */}
+          <img
+            src={token.uri !== "" ? token.uri : "/path/to/placeholder-image.png"}
+            alt="Token Logo"
+            className="w-6 h-6 rounded-full"
+          />
+          <div className="flex flex-col w-full ">
+            {/* Token Dropdown */}
             <select
               value={token.token}
               onChange={(e) =>
@@ -237,22 +280,30 @@ const SwapComponent = ({ availableTokens }) => {
               }
               className="bg-gray-800 rounded-md py-2 px-3 appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
+
               <option className="w-30" value="">Select Token</option>
               {availableTokens.map((t) => (
                 <option key={t.address} value={t.symbol}>
+
                   {t.name} ({t.symbol})
                 </option>
               ))}
             </select>
           </div>
-          <input
-            type="number"
-            value={token.value}
-            onChange={(e) => handleValueChange(index, e.target.value, direction)}
-            className="bg-gray-800 rounded-md py-2 px-3 w-30 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Amount"
-          />
         </div>
+        {/* Amount Input */}
+        <input
+          type="number"
+          value={token.value}
+          onChange={(e) => handleValueChange(index, e.target.value, direction)}
+          className="bg-gray-800 rounded-md py-2 px-3 w-30 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="Amount"
+        />
+      </div>
+      {/* Conditional Slider Rendering */}
+      {token.token !== "" &&
+        ((direction === "from" && fromTokens.length > 1) ||
+          (direction === "to" && toTokens.length > 1)) && (
         <div className="flex items-center">
           <Slider
             min={0}
@@ -264,16 +315,19 @@ const SwapComponent = ({ availableTokens }) => {
           />
           <span className="text-gray-400">{token.percentage}%</span>
         </div>
-        <button
-          onClick={() => handleDeleteToken(index, direction)}
-          className="text-gray-400 hover:text-red-500 transition-colors duration-200"
-          aria-label="Delete token"
-        >
-          <FaTimes />
-        </button>
-      </div>
-    ));
-  };
+      )}
+      {/* Delete Button */}
+      <button
+        onClick={() => handleDeleteToken(index, direction)}
+        className="text-gray-400 hover:text-red-500 transition-colors duration-200"
+        aria-label="Delete token"
+      >
+        <FaTimes />
+      </button>
+    </div>
+  ));
+};
+
 
   return (
     <div className="bg-gray-900 text-white rounded-lg shadow-xl p-6 w-full max-w-4xl">
@@ -288,7 +342,7 @@ const SwapComponent = ({ availableTokens }) => {
             onClick={() => handleAddToken("from")}
             className="text-blue-500 hover:text-blue-400 text-sm mt-2"
           >
-            + Add Token
+            + Add From Token
           </button>
         </div>
 
@@ -300,7 +354,7 @@ const SwapComponent = ({ availableTokens }) => {
             onClick={() => handleAddToken("to")}
             className="text-blue-500 hover:text-blue-400 text-sm mt-2"
           >
-            + Add Token
+            + Add To Token
           </button>
         </div>
 
@@ -312,6 +366,7 @@ const SwapComponent = ({ availableTokens }) => {
 
         {/* Connect Wallet Button */}
         <button
+
           onClick={atomicSwap}
           className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md transition duration-300 ease-in-out"
         >
@@ -338,7 +393,7 @@ const SwapComponent = ({ availableTokens }) => {
             <span>maxTransactionFee</span>
           </div>
 
-          {/* Max Transaction Fee Section */}
+          {/* Platform Fee Section */}
           <div className="flex justify-between items-center text-sm">
             <div className="flex items-center">
               <BiDollar className="text-gray-400 mr-2" />
