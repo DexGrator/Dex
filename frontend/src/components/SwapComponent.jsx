@@ -22,6 +22,10 @@ const SwapComponent = ({ availableTokens }) => {
     { token: "", value: "", uri: "", percentage: 100 },
   ]);
 
+  const handleSwapClick = (e) => {
+    
+  }
+
   // Additional States
   const [gasEstimate, setGasEstimate] = useState("963K (~$0.03)");
   const [minimumReceived, setMinimumReceived] = useState("2,332.7522 USD");
@@ -30,7 +34,7 @@ const SwapComponent = ({ availableTokens }) => {
   const wallet = useWallet();
   const connection = useSolanaConnection();
 
-  const atomicSwap = (e) => {
+  const atomicSwap = async () => {
 
     if(!wallet.connected || !wallet.signTransaction) {
       console.error(
@@ -100,6 +104,7 @@ const SwapComponent = ({ availableTokens }) => {
       try {
         const results = await Promise.all(
           toTokens.map(async (toToken) => {
+            if(!toToken.token) {return {toToken}}
             const price = await fetchOneToOnePrice(fromToken, toToken.token);
             return {
               ...toToken,
@@ -120,6 +125,7 @@ const SwapComponent = ({ availableTokens }) => {
 
   // Effect to Trigger Price Fetching
   useEffect(() => {
+    
     if (
       fromTokens.some((token) => token.value) &&
       toTokens.some((token) => token.token)
