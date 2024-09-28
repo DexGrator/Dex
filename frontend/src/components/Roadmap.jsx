@@ -2,7 +2,7 @@ const roadmapItems = [
     { quarter: 'Q1 - 2024', title: 'MVP', description: 'Implementation of the protocol on W3D DAO, ensuring cost and time reduction.' },
     { quarter: 'Q2 - 2024', title: 'SubGraph + Backend', description: 'Web3Task indexing and server, improved data collection, metrics, user experience, and API.' },
     { quarter: 'Q2 - 2024', title: 'Partnerships', description: 'Marketing to create partnerships with companies, educational institutions, communities, and DAOs for Web3Task SDK implementation.' },
-    { quarter: 'Q2 - 2024', title: 'Analysis and NSFW', description: 'Interactive activity panel and information control at the front-end level, creating a safer Earn2Learn environment.' },
+    { quarter: 'Q2 - 2024', title: 'Analysis ', description: 'Interactive activity panel and information control at the front-end level, creating a safer Earn2Learn environment.' },
     { quarter: 'Q3 - 2024', title: 'Taxation', description: 'Fee charging for task creation and API ensures Web3task viability, both for tool maintenance and new feature implementation.' },
     { quarter: 'Q3 - 2024', title: 'Expanding Horizons', description: 'Create a Hub for developers, facilitating user integration, providing supply for the growing demand of web3 projects.' },
   ]
