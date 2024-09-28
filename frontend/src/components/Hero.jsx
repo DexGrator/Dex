@@ -1,4 +1,17 @@
+"use client"
+import Link from "next/link";
+import { useState } from "react";
+
 export default function Hero() {
+  const [loading, setLoading] = useState(false);
+
+  const handleSwapClick = () => {
+    setLoading(true);
+    setTimeout(() => {
+      // You can redirect here if needed, or just let Link handle it
+    }, 1000);
+  };
+
   return (
     <section className="bg-black text-white py-20">
       <div className="container mx-auto flex flex-col items-center text-center">
@@ -9,9 +22,18 @@ export default function Hero() {
         <p className="text-xl mb-8 max-w-2xl">
           Power Your Trades with Solana's First Multi-Swap DEX effortless token swaps with MEV protection
         </p>
-        <button className="bg-gradient-to-r from-blue-500 to-purple-500 text-white text-lg px-8 py-3">
-          Swap Now
-        </button>
+        {loading ? (
+          <div className="flex items-center justify-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-blue-500"></div>
+            <p className="ml-4">Loading...</p>
+          </div>
+        ) : (
+          <Link href="/swap">
+            <button onClick={handleSwapClick} className="bg-gradient-to-r from-blue-500 to-purple-500 text-white text-lg px-8 py-3">
+              Swap Now
+            </button>
+          </Link>
+        )}
         <div className="mt-12 flex items-center space-x-4">
           <div className="flex -space-x-2">
             {[1, 2, 3].map((i) => (
@@ -23,5 +45,5 @@ export default function Hero() {
         </div>
       </div>
     </section>
-  )
+  );
 }

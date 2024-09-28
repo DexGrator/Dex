@@ -2,6 +2,15 @@ import Link from 'next/link'
 // import { Button } from "@/components/ui/button"
 import SolanaWalletConnect from './SolanaWalletConnect'
 
+const scrolltoHash = (element_id) => {
+  const element = document.getElementById(element_id);
+  element?.scrollIntoView({
+    behavior: "smooth",
+    block: "end",
+    inline: "nearest",
+  });
+};
+
 export default function Header() {
   return (
     <header className="bg-black text-white py-4">
@@ -12,7 +21,7 @@ export default function Header() {
         <nav>
           <ul className="flex space-x-6">
             <li><Link href="/" className="hover:text-blue-400">Home</Link></li>
-            <li><Link href="/roadmap" className="hover:text-blue-400">Roadmap</Link></li>
+            <li><Link href="/" className="hover:text-blue-400" onClick={() => scrolltoHash("roadmap")}>Roadmap</Link></li>
             <li><Link href="/docs" className="hover:text-blue-400">Docs</Link></li>
             <li><Link href="/contact" className="hover:text-blue-400">Contact</Link></li>
           </ul>

@@ -7,6 +7,8 @@ import { useMemo } from "react";
 import { ConnectionProvider, WalletProvider } from "@solana/wallet-adapter-react";
 import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
 import { WalletConnectProvider } from "./providers/WalletConnectProvider";
+import AppWalletProvider from "@/components/AppWalletProvider";
+
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -36,9 +38,9 @@ export default function RootLayout({ children }) {
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-700`}
       >
-        <WalletConnectProvider>
+          <AppWalletProvider>
           {children}
-        </WalletConnectProvider>
+        </AppWalletProvider>
       </body>
     </html>
   );
