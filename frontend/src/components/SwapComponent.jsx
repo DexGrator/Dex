@@ -48,52 +48,114 @@ const SwapComponent = ({ availableTokens }) => {
     const fromToken = availableTokens.find((token) => token.symbol === fromTokens[0]?.token);
     const toToken = availableTokens.find((token) => token.symbol === toTokens[0]?.token);
 
-    console.log({fromToken, toToken})
+    const newToTokens = toTokens.map((token) => {
+        const availToken = availableTokens.find((tkn) => tkn.symbol === token.token);
+        console.log(availToken)
+        return {
+          ...token,
+          address: availToken.address
+        }
+    })
 
-    fetch("/api/swap", {
+    console.log({fromToken, newToTokens})
+
+    fetch("/api/swapv2", {
       method: "POST",
-      headers: {
-        'Content-Type': 'application/json'
-      },
       body: JSON.stringify({
-        inputMint: fromToken.address,
-        outputMint: toToken.address,
-        amount: fromTokens[0].value * Math.pow(10, fromToken.decimals),
-        userPublicKey: wallet.publicKey?.toString()
+        fromToken: {...fromTokens[0], address: fromToken.address, decimals: fromToken.decimals},
+        toTokens: newToTokens,
+        publicKey: wallet.publicKey?.toString()
       })
     })
     .then(async (res) => {
-      try{
-        const {swapTransaction} = await res.json();
-        const swapTransactionBuf = Buffer.from(swapTransaction, 'base64');
-        const transaction = VersionedTransaction.deserialize(swapTransactionBuf);
-        const signedTransaction = await wallet.signTransaction(transaction)
-
-        const rawTransaction = signedTransaction.serialize();
-
-        const transactionId = await connection.sendRawTransaction(rawTransaction, {
-          skipPreflight: true, 
-          maxRetries: 2
-        });
-
+      try {
+        // Assuming res contains the response with multiple swap transactions in an array
+        const { swapTransactions } = await res.json();  // Multiple transactions
+        
+        const signedTransactions = await Promise.all(swapTransactions.map(async (tx) => {
+          // Deserialize the swap transaction from base64
+          const swapTransactionBuf = Buffer.from(tx.swapTransaction, 'base64');
+          const transaction = VersionedTransaction.deserialize(swapTransactionBuf);
+      
+          // Sign the transaction
+          const signedTransaction = await wallet.signTransaction(transaction);
+      
+          // Serialize the signed transaction
+          return signedTransaction.serialize();
+        }));
+      
+        // Send all the signed transactions
+        const transactionIds = await Promise.all(signedTransactions.map(async (rawTransaction) => {
+          // Send each raw transaction to the blockchain
+          return await connection.sendRawTransaction(rawTransaction, {
+            skipPreflight: true,
+            maxRetries: 2
+          });
+        }));
+      
+        // Confirm all transactions
         const latestBlockHash = await connection.getLatestBlockhash();
-        await connection.confirmTransaction({
-          blockhash: latestBlockHash.blockhash,
-          lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
-          signature: transactionId
-        }, 'confirmed');
-
-
-        alert("Swap Successful!");
-        console.log(`https://solscan.io/tx/${transactionId}`);
-
-      } catch (e){ 
-        console.error("Failed to sign transaction: ", e);
+      
+        await Promise.all(transactionIds.map(async (transactionId) => {
+          await connection.confirmTransaction({
+            blockhash: latestBlockHash.blockhash,
+            lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
+            signature: transactionId
+          }, 'confirmed');
+          console.log(`https://solscan.io/tx/${transactionId}`);  // Log transaction URLs for tracking
+        }));
+      
+        alert("Multi-Token Swap Successful!");
+      
+      } catch (e) {
+        console.error("Failed to sign or send transactions: ", e);
       }
-    })
-    .catch((err) => {
-      console.log(err);
-    })
+    });
+
+    // fetch("/api/swap", {
+    //   method: "POST",
+    //   headers: {
+    //     'Content-Type': 'application/json'
+    //   },
+    //   body: JSON.stringify({
+    //     inputMint: fromToken.address,
+    //     outputMint: toToken.address,
+    //     amount: fromTokens[0].value * Math.pow(10, fromToken.decimals),
+    //     userPublicKey: wallet.publicKey?.toString()
+    //   })
+    // })
+    // .then(async (res) => {
+    //   try{
+    //     const {swapTransaction} = await res.json();
+    //     const swapTransactionBuf = Buffer.from(swapTransaction, 'base64');
+    //     const transaction = VersionedTransaction.deserialize(swapTransactionBuf);
+    //     const signedTransaction = await wallet.signTransaction(transaction)
+
+    //     const rawTransaction = signedTransaction.serialize();
+
+    //     const transactionId = await connection.sendRawTransaction(rawTransaction, {
+    //       skipPreflight: true, 
+    //       maxRetries: 2
+    //     });
+
+    //     const latestBlockHash = await connection.getLatestBlockhash();
+    //     await connection.confirmTransaction({
+    //       blockhash: latestBlockHash.blockhash,
+    //       lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
+    //       signature: transactionId
+    //     }, 'confirmed');
+
+
+    //     alert("Swap Successful!");
+    //     console.log(`https://solscan.io/tx/${transactionId}`);
+
+    //   } catch (e){ 
+    //     console.error("Failed to sign transaction: ", e);
+    //   }
+    // })
+    // .catch((err) => {
+    //   console.log(err);
+    // })
   }
 
   const fetchPrice = useCallback(
