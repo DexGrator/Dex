@@ -1,106 +1,99 @@
-"use client";
-
-import { useState, useCallback, useEffect } from "react";
-import { FaTimes } from "react-icons/fa";
-import { BiGasPump, BiDollar, BiCoin } from "react-icons/bi";
-import Slider from "rc-slider";
-import "rc-slider/assets/index.css";
-import { debounce } from "lodash";
-import { fetchOneToOnePrice } from "@/service/jupiter-service";
+import { useCallback, useEffect, useState } from "react";
+import debounce from "lodash.debounce";
+import { ArrowDownUp, Search, Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Slider } from "@/components/ui/slider";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { fetchOneToOnePrice } from "@/service/jupiter-service"; // Your price fetching logic
 import { useWallet } from "@solana/wallet-adapter-react";
-import { VersionedTransaction } from "@solana/web3.js";
 import useSolanaConnection from "@/app/hooks/useSolanaConnect";
+import { VersionedTransaction } from "@solana/web3.js";
+
+const TokenSelector = ({ token, onSelect, isFrom, availableTokens, toTokens }) => {
+  const [openPopover, setOpenPopover] = useState(false);
+  const [searchValue, setSearchValue] = useState("");
+
+  return (
+    <Popover open={openPopover} onOpenChange={setOpenPopover}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" className="justify-between w-[200px]">
+          {token ? (
+            <div className="flex items-center">
+              <img src={token.logoURI} alt={token.name} className="w-6 h-6 mr-2" />
+              {token.symbol}
+            </div>
+          ) : (
+            "Select token"
+          )}
+          <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[200px] p-0">
+        <Command>
+          <CommandInput placeholder="Search tokens..." onValueChange={setSearchValue} />
+          <CommandList>
+            <CommandEmpty>No tokens found.</CommandEmpty>
+            <CommandGroup>
+              {availableTokens
+                .filter((t) =>
+                  (isFrom || !toTokens.some((tt) => tt.address === t.address)) &&
+                  (t.name.toLowerCase().includes(searchValue.toLowerCase()) ||
+                   t.symbol.toLowerCase().includes(searchValue.toLowerCase()))
+                )
+                .map((t) => (
+                  <CommandItem
+                    key={t.address}
+                    onSelect={() => {
+                      onSelect(t);
+                      setOpenPopover(false);
+                    }}
+                  >
+                    <div className="flex items-center">
+                      <img src={t.logoURI} alt={t.name} className="w-6 h-6 mr-2" />
+                      {t.symbol} - {t.name}
+                    </div>
+                  </CommandItem>
+                ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+};
 
 const SwapComponent = ({ availableTokens }) => {
-  // State for From Tokens
-  const [fromTokens, setFromTokens] = useState([
-    { token: "", value: "", uri: "", percentage: 100 },
-  ]);
-
-  // State for To Tokens
-  const [toTokens, setToTokens] = useState([
-    { token: "", value: "", uri: "", percentage: 100 },
-  ]);
-
-  // Additional States
-  const [gasEstimate, setGasEstimate] = useState("963K (~$0.03)");
-  const [minimumReceived, setMinimumReceived] = useState("2,332.7522 USD");
+  const [fromToken, setFromToken] = useState(null);
+  const [toTokens, setToTokens] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
 
   const wallet = useWallet();
   const connection = useSolanaConnection();
 
-  const atomicSwap = (e) => {
-
-    if(!wallet.connected || !wallet.signTransaction) {
-      console.error(
-        "Wallet is not connected or does not support signing transactions"
-      );
-      console.log(wallet)
-      return;
-    }
-
-    console.log("Swap initiated", {fromTokens, toTokens})
-    const fromToken = availableTokens.find((token) => token.symbol === fromTokens[0]?.token);
-    const toToken = availableTokens.find((token) => token.symbol === toTokens[0]?.token);
-
-    console.log({fromToken, toToken})
-
-    fetch("/api/swap", {
-      method: "POST",
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        inputMint: fromToken.address,
-        outputMint: toToken.address,
-        amount: fromTokens[0].value * Math.pow(10, fromToken.decimals),
-        userPublicKey: wallet.publicKey?.toString()
-      })
-    })
-    .then(async (res) => {
-      try{
-        const {swapTransaction} = await res.json();
-        const swapTransactionBuf = Buffer.from(swapTransaction, 'base64');
-        const transaction = VersionedTransaction.deserialize(swapTransactionBuf);
-        const signedTransaction = await wallet.signTransaction(transaction)
-
-        const rawTransaction = signedTransaction.serialize();
-
-        const transactionId = await connection.sendRawTransaction(rawTransaction, {
-          skipPreflight: true, 
-          maxRetries: 2
-        });
-
-        const latestBlockHash = await connection.getLatestBlockhash();
-        await connection.confirmTransaction({
-          blockhash: latestBlockHash.blockhash,
-          lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
-          signature: transactionId
-        }, 'confirmed');
-
-
-        alert("Swap Successful!");
-        console.log(`https://solscan.io/tx/${transactionId}`);
-
-      } catch (e){ 
-        console.error("Failed to sign transaction: ", e);
-      }
-    })
-    .catch((err) => {
-      console.log(err);
-    })
-  }
-
   const fetchPrice = useCallback(
     debounce(async (fromToken, toTokens, amount) => {
+      console.log({fromToken, toTokens, amount})
       if (!fromToken || !toTokens.length || !amount) return;
-
+      
       setIsLoading(true);
       try {
         const results = await Promise.all(
           toTokens.map(async (toToken) => {
-            const price = await fetchOneToOnePrice(fromToken, toToken.token);
+            const price = await fetchOneToOnePrice(fromToken, toToken.symbol);
             return {
               ...toToken,
               value: price * amount * (toToken.percentage / 100),
@@ -109,6 +102,7 @@ const SwapComponent = ({ availableTokens }) => {
         );
 
         setToTokens(results);
+        console.log(results);
       } catch (error) {
         console.error("Error fetching conversion:", error);
       } finally {
@@ -118,96 +112,11 @@ const SwapComponent = ({ availableTokens }) => {
     []
   );
 
-  // Effect to Trigger Price Fetching
-  useEffect(() => {
-    if (
-      fromTokens.some((token) => token.value) &&
-      toTokens.some((token) => token.token)
-    ) {
-      fetchPrice(fromTokens[0]?.token, toTokens, fromTokens[0]?.value);
-    }
-  }, [fromTokens, toTokens, fetchPrice]);
-
-  // Handler to Add a New Token
-  const handleAddToken = (direction) => {
-    const newTokens =
-      direction === "from" ? [...fromTokens] : [...toTokens];
-    const newToken = {
-      token: "",
-      value: "",
-      uri: "",
-      percentage: 100 / (newTokens.length + 1),
-    };
-
-    newTokens.push(newToken);
-    updatePercentages(newTokens, direction);
-  };
-
-  // Handler to Delete a Token
-  const handleDeleteToken = (index, direction) => {
-    const newTokens =
-      direction === "from"
-        ? fromTokens.filter((_, i) => i !== index)
-        : toTokens.filter((_, i) => i !== index);
-
-    if (newTokens.length === 0) {
-      newTokens.push({ token: "", value: "", uri: "", percentage: 100 });
-    } else {
-      updatePercentages(newTokens, direction);
-    }
-
-    if (direction === "from") {
-      setFromTokens(newTokens);
-    } else {
-      setToTokens(newTokens);
-    }
-  };
-
-  // Function to Update Percentages Uniformly
-  const updatePercentages = (tokens, direction) => {
-    const totalTokens = tokens.length;
-    const newPercentage = 100 / totalTokens;
-
-    tokens.forEach((token) => (token.percentage = newPercentage));
-
-    if (direction === "from") {
-      setFromTokens(tokens);
-    } else {
-      setToTokens(tokens);
-    }
-  };
-
-  // Handler for Token Selection Change
-  const handleTokenChange = (index, value, direction) => {
-    let logoURI = null;
-    const tokenEntry = availableTokens.find(
-      (token) => token.symbol === value
-    );
-    if (tokenEntry) {
-      logoURI = tokenEntry.logoURI;
-    }
-
-    if (direction === "from") {
-      const newFromTokens = [...fromTokens];
-      newFromTokens[index].token = value;
-      newFromTokens[index].uri = logoURI ? logoURI : "";
-      setFromTokens(newFromTokens);
-    } else {
-      const newToTokens = [...toTokens];
-      newToTokens[index].token = value;
-      newToTokens[index].uri = logoURI ? logoURI : "";
-      setToTokens(newToTokens);
-    }
-  };
-
-  // Handler for Value Change
   const handleValueChange = (index, value, direction) => {
     if (direction === "from") {
-      const newFromTokens = [...fromTokens];
-      newFromTokens[index].value = value;
-      setFromTokens(newFromTokens);
-
-      fetchPrice(fromTokens[index].token, toTokens, value);
+      setFromToken({...fromToken, amount: value});
+      console.log(fromToken)
+      fetchPrice(fromToken.symbol, toTokens, value);
     } else {
       const newToTokens = [...toTokens];
       newToTokens[index].value = value;
@@ -215,10 +124,9 @@ const SwapComponent = ({ availableTokens }) => {
     }
   };
 
-  // Handler for Percentage Change
   const handlePercentageChange = (index, value, direction) => {
     const tokens =
-      direction === "from" ? [...fromTokens] : [...toTokens];
+      direction === "from" ? fromToken : [...toTokens];
     const totalTokens = tokens.length;
 
     tokens[index].percentage = value;
@@ -231,7 +139,7 @@ const SwapComponent = ({ availableTokens }) => {
     });
 
     if (direction === "from") {
-      setFromTokens(tokens);
+      setFromToken(tokens);
     } else {
       setToTokens(tokens);
     }
@@ -242,176 +150,247 @@ const SwapComponent = ({ availableTokens }) => {
     }, 0);
 
     if (direction === "from") {
-      fetchPrice(fromTokens[0]?.token, toTokens, totalFromValue);
+      fetchPrice(fromToken.symbol, toTokens, totalFromValue);
     } else {
-      fetchPrice(fromTokens[0]?.token, tokens, fromTokens[0]?.value);
+      fetchPrice(fromToken.symbol, tokens, fromToken.value);
+    }
+  };
+  
+
+
+  const addToken = () => {
+    if (toTokens.length < 5) {
+      const newPercentage = 100 / (toTokens.length + 1);
+      const updatedTokens = toTokens.map(token => ({
+        ...token,
+        percentage: newPercentage,
+      }));
+      const newToken = {
+        token: null,
+        amount: "",
+        percentage: newPercentage,
+      };
+      setToTokens([...updatedTokens, newToken]);
     }
   };
 
-  // Filtered Token Lists Based on Search Inputs
-  // const filteredFromTokens = availableTokens.filter((t) =>
-  //   t.name.toLowerCase().includes(searchFrom.toLowerCase())
-  // );
+  const updateTokenPercentage = (index, value) => {
+    const updatedTokens = [...toTokens];
+    updatedTokens[index].percentage = value;
+    const remainingPercentage = 100 - value;
+    const otherTokens = updatedTokens.filter((_, i) => i !== index);
+    otherTokens.forEach((token) => (token.percentage = remainingPercentage / otherTokens.length));
+    setToTokens(updatedTokens);
+  };
 
-  // const filteredToTokens = availableTokens.filter((t) =>
-  //   t.name.toLowerCase().includes(searchTo.toLowerCase())
-  // );
+  const handleAmountChange = (index, value) => {
+    const updatedTokens = [...toTokens];
+    updatedTokens[index].amount = value;
+    setToTokens(updatedTokens);
+  };
 
-  // Function to Render Token Inputs
-  // Function to Render Token Inputs
-const renderTokenInputs = (tokens, direction) => {
-  return tokens.map((token, index) => (
-    <div key={index} className="space-y-4 mb-6 overflow-hidden">
-      {/* Token Selection and Value Input */}
-      <div className="flex flex-col space-y-2 overflow-hidden">
-        <div className="flex items-center space-x-4">
-          {/* Token Logo */}
-          <img
-            src={token.uri !== "" ? token.uri : "/image.png"}
-            alt="Token Logo"
-            className="w-6 h-6 rounded-full"
-          />
-          <div className="flex flex-col w-full ">
-            {/* Token Dropdown */}
-            <select
-              value={token.token}
-              onChange={(e) =>
-                handleTokenChange(index, e.target.value, direction)
-              }
-              className="bg-gray-800 rounded-md py-2 px-3 appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
+  const handleSwap = () => {
+    // Logic for performing swap action
+    console.log("Swapping:", fromToken, toTokens);
+  };
 
-              <option className="w-30" value="">Select Token</option>
-              {availableTokens.map((t) => (
-                <option key={t.address} value={t.symbol}>
+  const atomicSwap = async () => {
 
-                  {t.name} ({t.symbol})
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-        {/* Amount Input */}
-        <input
-          type="number"
-          value={token.value}
-          onChange={(e) => handleValueChange(index, e.target.value, direction)}
-          className="bg-gray-800 rounded-md py-2 px-3 w-30 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          placeholder="Amount"
-        />
-      </div>
-      {/* Conditional Slider Rendering */}
-      {token.token !== "" &&
-        ((direction === "from" && fromTokens.length > 1) ||
-          (direction === "to" && toTokens.length > 1)) && (
-        <div className="flex items-center">
-          <Slider
-            min={0}
-            max={100}
-            step={1}
-            value={token.percentage}
-            onChange={(value) => handlePercentageChange(index, value, direction)}
-            className="w-3/4 mx-2"
-          />
-          <span className="text-gray-400">{token.percentage}%</span>
-        </div>
-      )}
-      {/* Delete Button */}
-      <button
-        onClick={() => handleDeleteToken(index, direction)}
-        className="text-gray-400 hover:text-red-500 transition-colors duration-200"
-        aria-label="Delete token"
-      >
-        <FaTimes />
-      </button>
-    </div>
-  ));
-};
+    if(!wallet.connected || !wallet.signTransaction) {
+      console.error(
+        "Wallet is not connected or does not support signing transactions"
+      );
+      console.log(wallet)
+      return;
+    }
 
+    console.log("Swap initiated", {fromToken, toTokens})
+
+    const newToTokens = toTokens.map((token) => {
+        const availToken = availableTokens.find((tkn) => tkn.symbol === token.symbol);
+        return {
+          ...token,
+          address: availToken.address
+        }
+    })
+
+    console.log({fromToken, newToTokens})
+
+    fetch("/api/swapv2", {
+      method: "POST",
+      body: JSON.stringify({
+        fromToken: fromToken,
+        toTokens: toTokens,
+        publicKey: wallet.publicKey?.toString()
+      })
+    })
+    .then(async (res) => {
+      try {
+        // Assuming res contains the response with multiple swap transactions in an array
+        const { swapTransactions } = await res.json();  // Multiple transactions
+        
+        const signedTransactions = await Promise.all(swapTransactions.map(async (tx) => {
+          // Deserialize the swap transaction from base64
+          const swapTransactionBuf = Buffer.from(tx.swapTransaction, 'base64');
+          const transaction = VersionedTransaction.deserialize(swapTransactionBuf);
+      
+          // Sign the transaction
+          const signedTransaction = await wallet.signTransaction(transaction);
+      
+          // Serialize the signed transaction
+          return signedTransaction.serialize();
+        }));
+      
+        // Send all the signed transactions
+        const transactionIds = await Promise.all(signedTransactions.map(async (rawTransaction) => {
+          // Send each raw transaction to the blockchain
+          return await connection.sendRawTransaction(rawTransaction, {
+            skipPreflight: true,
+            maxRetries: 2
+          });
+        }));
+      
+        // Confirm all transactions
+        const latestBlockHash = await connection.getLatestBlockhash();
+      
+        await Promise.all(transactionIds.map(async (transactionId) => {
+          await connection.confirmTransaction({
+            blockhash: latestBlockHash.blockhash,
+            lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
+            signature: transactionId
+          }, 'confirmed');
+          console.log(`https://solscan.io/tx/${transactionId}`);  // Log transaction URLs for tracking
+        }));
+      
+        alert("Multi-Token Swap Successful!");
+      
+      } catch (e) {
+        console.error("Failed to sign or send transactions: ", e);
+      }
+    });
+
+    // fetch("/api/swap", {
+    //   method: "POST",
+    //   headers: {
+    //     'Content-Type': 'application/json'
+    //   },
+    //   body: JSON.stringify({
+    //     inputMint: fromToken.address,
+    //     outputMint: toToken.address,
+    //     amount: fromTokens[0].value * Math.pow(10, fromToken.decimals),
+    //     userPublicKey: wallet.publicKey?.toString()
+    //   })
+    // })
+    // .then(async (res) => {
+    //   try{
+    //     const {swapTransaction} = await res.json();
+    //     const swapTransactionBuf = Buffer.from(swapTransaction, 'base64');
+    //     const transaction = VersionedTransaction.deserialize(swapTransactionBuf);
+    //     const signedTransaction = await wallet.signTransaction(transaction)
+
+    //     const rawTransaction = signedTransaction.serialize();
+
+    //     const transactionId = await connection.sendRawTransaction(rawTransaction, {
+    //       skipPreflight: true, 
+    //       maxRetries: 2
+    //     });
+
+    //     const latestBlockHash = await connection.getLatestBlockhash();
+    //     await connection.confirmTransaction({
+    //       blockhash: latestBlockHash.blockhash,
+    //       lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
+    //       signature: transactionId
+    //     }, 'confirmed');
+
+
+    //     alert("Swap Successful!");
+    //     console.log(`https://solscan.io/tx/${transactionId}`);
+
+    //   } catch (e){ 
+    //     console.error("Failed to sign transaction: ", e);
+    //   }
+    // })
+    // .catch((err) => {
+    //   console.log(err);
+    // })
+  }
 
   return (
-    <div className="bg-gray-900 text-white rounded-lg shadow-xl p-6 w-full max-w-4xl">
-      <h2 className="text-2xl font-bold mb-6">Swap Tokens</h2>
+    <div className="max-w-2xl mx-auto p-6 bg-white rounded-xl shadow-md">
+      <h2 className="text-2xl font-bold mb-6 text-center">Token Swap</h2>
 
-      <div className="space-y-8">
-        {/* From Section */}
-        <div>
-          <label className="block text-sm font-medium mb-2">From</label>
-          {renderTokenInputs(fromTokens, "from")}
-          <button
-            onClick={() => handleAddToken("from")}
-            className="text-blue-500 hover:text-blue-400 text-sm mt-2"
-          >
-            + Add From Token
-          </button>
-        </div>
-
-        {/* To Section */}
-        <div>
-          <label className="block text-sm font-medium mb-2">To</label>
-          {renderTokenInputs(toTokens, "to")}
-          <button
-            onClick={() => handleAddToken("to")}
-            className="text-blue-500 hover:text-blue-400 text-sm mt-2"
-          >
-            + Add To Token
-          </button>
-        </div>
-
-        {/* Minimum Received */}
-        <div className="flex justify-between text-sm">
-          <span className="text-gray-400">Minimum Received:</span>
-          <span>{minimumReceived}</span>
-        </div>
-
-        {/* Connect Wallet Button */}
-        <button
-
-          onClick={atomicSwap}
-          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md transition duration-300 ease-in-out"
-        >
-          Swap Tokens
-        </button>
-
-        {/* Additional Sections */}
-        <div className="flex flex-col space-y-4">
-          {/* Gas Estimate Section */}
-          <div className="flex justify-between items-center text-sm">
-            <div className="flex items-center">
-              <BiGasPump className="text-gray-400 mr-2" />
-              <span className="text-gray-400">Gas Estimate</span>
-            </div>
-            <span>{gasEstimate}</span>
-          </div>
-
-          {/* Max Transaction Fee Section */}
-          <div className="flex justify-between items-center text-sm">
-            <div className="flex items-center">
-              <BiDollar className="text-gray-400 mr-2" />
-              <span className="text-gray-400">Max Transaction Fee</span>
-            </div>
-            <span>maxTransactionFee</span>
-          </div>
-
-          {/* Platform Fee Section */}
-          <div className="flex justify-between items-center text-sm">
-            <div className="flex items-center">
-              <BiDollar className="text-gray-400 mr-2" />
-              <span className="text-gray-400">Platform Fee</span>
-            </div>
-            <span>0.01%</span>
-          </div>
-
-          {/* Deposit Section */}
-          <div className="flex justify-between items-center text-sm">
-            <div className="flex items-center">
-              <BiCoin className="text-gray-400 mr-2" />
-              <span className="text-gray-400">Deposit</span>
-            </div>
-            <span>deposit</span>
-          </div>
+      <div className="space-y-4 mb-6">
+        <Label>From</Label>
+        <div className="flex items-center space-x-2">
+          <TokenSelector
+            token={fromToken}
+            onSelect={(newToken) => setFromToken({ ...newToken, amount: "", percentage: 100 })}
+            isFrom={true}
+            availableTokens={availableTokens}
+            toTokens={toTokens}
+          />
+          <Input
+            type="number"
+            placeholder="Amount"
+            value={fromToken?.amount || ""}
+            onChange={(e) => handleValueChange(0, e.target.value, "from")}
+            className="w-[100px]"
+          />
         </div>
       </div>
+
+      <div className="flex justify-center my-4">
+        <ArrowDownUp className="h-6 w-6" />
+      </div>
+
+      <div className="space-y-4 mb-6">
+        <Label>To</Label>
+        {toTokens.map((token, index) => (
+          <div key={index} className="flex items-center space-x-2">
+            <TokenSelector
+              token={token}
+              onSelect={(newToken) => {
+                const updatedTokens = [...toTokens];
+                updatedTokens[index] = {
+                  ...newToken,
+                  amount: token.amount,
+                  percentage: token.percentage,
+                };
+                setToTokens(updatedTokens);
+              }}
+              isFrom={false}
+              availableTokens={availableTokens}
+              toTokens={toTokens}
+            />
+            <Input
+              type="number"
+              placeholder="Amount"
+              value={token.value}
+              onChange={(e) => handleAmountChange(index, e.target.value)}
+              className="w-[100px]"
+            />
+            <div className="flex-1">
+              <Slider
+                value={[token.percentage]}
+                onValueChange={(value) => handlePercentageChange(index, value[0],"to")}
+                max={100}
+                step={1}
+              />
+            </div>
+            <span className="w-[40px] text-right">{token.percentage.toFixed(0)}%</span>
+          </div>
+        ))}
+        
+        {toTokens.length < 5 && (
+          <Button variant="outline" size="sm" onClick={addToken} className="mt-2">
+            <Plus className="mr-2 h-4 w-4" /> Add Token
+          </Button>
+        )}
+      </div>
+
+      <Button className="w-full" onClick={atomicSwap} disabled={isLoading}>
+        {isLoading ? "Swapping..." : "Swap"}
+      </Button>
     </div>
   );
 };
