@@ -1,28 +1,49 @@
 "use client"
-import { Button } from "@/app/ui/buttons";
-import React from "react";
-import Image from "next/image";
+import Link from "next/link";
+import { useState } from "react";
 
-const Hero = () => {
+export default function Hero() {
+  const [loading, setLoading] = useState(false);
+
+  const handleSwapClick = () => {
+    setLoading(true);
+    setTimeout(() => {
+      // You can redirect here if needed, or just let Link handle it
+    }, 1000);
+  };
+
   return (
-    <div className="h-[90vh] flex flex-col lg:flex-row items-center justify-center lg:space-x-8">
-      {/* Video Section */}
-      <div className="w-full lg:w-1/2 flex justify-center items-center">
-        <Image src={"/cat.gif"} height={250} width={250} className="block" />
-      </div>
-
-      {/* Text Section */}
-      <div className="text-white w-full lg:w-1/2 flex flex-col items-start p-8 lg:p-20">
-        <h1 className="text-4xl lg:text-7xl font-bold text-center lg:text-left">
-          The Optimal Order Routing Solution
+    <section className="bg-black text-white py-20">
+      <div className="container mx-auto flex flex-col items-center text-center">
+        <h1 className="text-5xl font-bold mb-6">
+          The Multi-Swap <br />
+          <span className="bg-gradient-to-r from-blue-500 to-purple-500 text-transparent bg-clip-text">DEX is Here</span>
         </h1>
-        <p className="text-md lg:text-lg text-left py-4 lg:py-12">
-          Smart Order Routing across multiple blockchain protocols, 900+ Liquidity Sources and thousands of token pairs, delivering ultimate savings to users
+        <p className="text-xl mb-8 max-w-2xl">
+          Power Your Trades with Solana's First Multi-Swap DEX effortless token swaps with MEV protection
         </p>
-        <Button className="bg-red-200 rounded-xl mt-4 lg:ml-0">Launch dApp</Button>
+        {loading ? (
+          <div className="flex items-center justify-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-blue-500"></div>
+            <p className="ml-4">Loading...</p>
+          </div>
+        ) : (
+          <Link href="/swap">
+            <button onClick={handleSwapClick} className="bg-gradient-to-r from-blue-500 to-purple-500 text-white text-lg px-8 py-3">
+              Swap Now
+            </button>
+          </Link>
+        )}
+        <div className="mt-12 flex items-center space-x-4">
+          <div className="flex -space-x-2">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="w-10 h-10 rounded-full bg-gray-300"></div>
+            ))}
+          </div>
+          <span className="text-2xl font-bold">5M+</span>
+          <span className="text-gray-400">Tokens Available</span>
+        </div>
       </div>
-    </div>
+    </section>
   );
-};
-
-export default Hero;
+}
