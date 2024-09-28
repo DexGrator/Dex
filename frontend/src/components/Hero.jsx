@@ -13,7 +13,7 @@ export default function Hero() {
   };
 
   return (
-    <section className="bg-black text-white py-20">
+    <section className="bg-black text-white py-20  h-[95vh] flex items-center">
       <div className="container mx-auto flex flex-col items-center text-center">
         <h1 className="text-5xl font-bold mb-6">
           The Multi-Swap <br />

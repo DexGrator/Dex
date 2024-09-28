@@ -1,11 +1,11 @@
-"use client"; // Specify that this is a client-side component
+"use client";
 
 import Link from 'next/link';
-import { FaTwitter, FaDiscord } from 'react-icons/fa';  // Import icons from react-icons
+import { FaTwitter, FaDiscord } from 'react-icons/fa';  
 
 export default function Footer() {
   return (
-    <footer className="bg-black text-white py-12">
+    <footer className="bg-black text-white">
       <div className="container mx-auto">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           <div>

@@ -1,3 +1,4 @@
+"use client"
 import { useCallback, useEffect, useState } from "react";
 import debounce from "lodash.debounce";
 import { ArrowDownUp, Search, Plus } from "lucide-react";
@@ -62,10 +63,10 @@ const TokenSelector = ({ token, onSelect, isFrom, availableTokens, toTokens }) =
                       setOpenPopover(false);
                     }}
                   >
-                    <div className="flex items-center">
+                    {t.logoURI && <div className="flex items-center">
                       <img src={t.logoURI} alt={t.name} className="w-6 h-6 mr-2" />
                       {t.symbol} - {t.name}
-                    </div>
+                    </div>}
                   </CommandItem>
                 ))}
             </CommandGroup>
@@ -316,83 +317,86 @@ const SwapComponent = ({ availableTokens }) => {
   }
 
   return (
-    <div className="max-w-2xl mx-auto p-6 bg-white rounded-xl shadow-md">
-      <h2 className="text-2xl font-bold mb-6 text-center">Token Swap</h2>
-
-      <div className="space-y-4 mb-6">
-        <Label>From</Label>
-        <div className="flex items-center space-x-2">
-          <TokenSelector
-            token={fromToken}
-            onSelect={(newToken) => setFromToken({ ...newToken, amount: "", percentage: 100 })}
-            isFrom={true}
-            availableTokens={availableTokens}
-            toTokens={toTokens}
-          />
-          <Input
-            type="number"
-            placeholder="Amount"
-            value={fromToken?.amount || ""}
-            onChange={(e) => handleValueChange(0, e.target.value, "from")}
-            className="w-[100px]"
-          />
-        </div>
-      </div>
-
-      <div className="flex justify-center my-4">
-        <ArrowDownUp className="h-6 w-6" />
-      </div>
-
-      <div className="space-y-4 mb-6">
-        <Label>To</Label>
-        {toTokens.map((token, index) => (
-          <div key={index} className="flex items-center space-x-2">
+    <div className="flex justify-center items-center h-[50vh]">
+      <div className="w-[60vw] p-6 bg-white rounded-xl shadow-md">
+        <h2 className="text-2xl font-bold mb-6 text-center">Token Swap</h2>
+  
+        <div className="space-y-4 mb-6">
+          <Label>From</Label>
+          <div className="flex items-center space-x-2">
             <TokenSelector
-              token={token}
-              onSelect={(newToken) => {
-                const updatedTokens = [...toTokens];
-                updatedTokens[index] = {
-                  ...newToken,
-                  amount: token.amount,
-                  percentage: token.percentage,
-                };
-                setToTokens(updatedTokens);
-              }}
-              isFrom={false}
+              token={fromToken}
+              onSelect={(newToken) => setFromToken({ ...newToken, amount: "", percentage: 100 })}
+              isFrom={true}
               availableTokens={availableTokens}
               toTokens={toTokens}
             />
             <Input
               type="number"
               placeholder="Amount"
-              value={token.value}
-              onChange={(e) => handleAmountChange(index, e.target.value)}
+              value={fromToken?.amount || ""}
+              onChange={(e) => handleValueChange(0, e.target.value, "from")}
               className="w-[100px]"
             />
-            <div className="flex-1">
-              <Slider
-                value={[token.percentage]}
-                onValueChange={(value) => handlePercentageChange(index, value[0],"to")}
-                max={100}
-                step={1}
-              />
-            </div>
-            <span className="w-[40px] text-right">{token.percentage.toFixed(0)}%</span>
           </div>
-        ))}
-        
-        {toTokens.length < 5 && (
-          <Button variant="outline" size="sm" onClick={addToken} className="mt-2">
-            <Plus className="mr-2 h-4 w-4" /> Add Token
-          </Button>
-        )}
+        </div>
+  
+        <div className="flex justify-center my-4">
+          <ArrowDownUp className="h-6 w-6" />
+        </div>
+  
+        <div className="space-y-4 mb-6 items-center">
+          <Label className="mr-2">To</Label>
+          <br />
+          {toTokens.map((token, index) => (
+            <div key={index} className="flex items-center space-x-2">
+              <TokenSelector
+                token={token}
+                onSelect={(newToken) => {
+                  const updatedTokens = [...toTokens];
+                  updatedTokens[index] = {
+                    ...newToken,
+                    amount: token.amount,
+                    percentage: token.percentage,
+                  };
+                  setToTokens(updatedTokens);
+                }}
+                isFrom={false}
+                availableTokens={availableTokens}
+                toTokens={toTokens}
+              />
+              <Input
+                type="number"
+                placeholder="Amount"
+                value={token.value}
+                onChange={(e) => handleAmountChange(index, e.target.value)}
+                className="w-[100px]"
+              />
+              <div className="flex-1">
+                <Slider
+                  value={[token.percentage]}
+                  onValueChange={(value) => handlePercentageChange(index, value[0], "to")}
+                  max={100}
+                  step={1}
+                />
+              </div>
+              <span className="w-[40px] text-right">{token.percentage.toFixed(0)}%</span>
+            </div>
+          ))}
+  
+          {toTokens.length < 5 && (
+            <Button variant="outline" size="sm" onClick={addToken} className="mt-2">
+              <Plus className="mr-2 h-4 w-4" /> Add Token
+            </Button>
+          )}
+        </div>
+  
+        <Button className="w-full" onClick={atomicSwap} disabled={isLoading}>
+          {isLoading ? "updating..." : "Swap"}
+        </Button>
       </div>
-
-      <Button className="w-full" onClick={atomicSwap} disabled={isLoading}>
-        {isLoading ? "Swapping..." : "Swap"}
-      </Button>
     </div>
   );
-};
+}  
 
 export default SwapComponent;
