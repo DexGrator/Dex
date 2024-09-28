@@ -13,8 +13,8 @@ export async function POST(request) {
 
     const quotes = await Promise.all(
         toTokens.map(async ({ address, percentage }) => {
-          const amount = ((percentage / 100) * parseFloat(fromToken.value)) * Math.pow(10, fromToken.decimals);
-          console.log({percentage, amount, value: parseFloat(fromToken.value)})
+          const amount = ((percentage / 100) * parseFloat(fromToken.amount)) * Math.pow(10, fromToken.decimals);
+          console.log({percentage, amount, value: parseFloat(fromToken.amount)})
           const quote = await fetchQuote(fromToken.address, address, amount);
           return { address, quote };
         })
