@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 async function fetchQuote(inputMint, outputMint, amount) {
-    const response = await fetch(`https://quote-api.jup.ag/v6/quote?inputMint=${inputMint}&outputMint=${outputMint}&amount=${amount}&slippage=0.3`);
+    const response = await fetch(`https://quote-api.jup.ag/v6/quote?inputMint=${inputMint}&outputMint=${outputMint}&amount=${amount}&slippage=0.8`);
     return await response.json();
   }
   
