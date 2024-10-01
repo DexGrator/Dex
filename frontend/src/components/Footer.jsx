@@ -2,20 +2,21 @@
 
 import Link from 'next/link';
 import { FaTwitter, FaDiscord } from 'react-icons/fa';  
+import Image from 'next/image';
 
 export default function Footer() {
   return (
-    <footer className="bg-black text-white">
-      <div className="container mx-auto">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+    <footer className="bg-[#021524] text-white flex justify-center items-center">
+      <div className="container mx-auto flex flex-col items-center justify-center">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-8 text-center md:text-left">
           <div>
             <Link href="/" className="text-2xl font-bold bg-gradient-to-r from-blue-500 to-purple-500 text-transparent bg-clip-text">
-              WEB3TASK
+              <Image src={"/logo3.png"} width={200} height={1000} alt="Logo" />
             </Link>
             <p className="mt-4 text-gray-400">
               Join our Discord channel or follow us on Twitter to keep up to date with our latest work and announcements.
             </p>
-            <div className="flex space-x-4 mt-4">
+            <div className="flex space-x-4 mt-4 justify-center">
               <Link href="#" className="text-gray-400 hover:text-white">
                 <FaTwitter />
               </Link>

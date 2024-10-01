@@ -9,7 +9,7 @@ const roadmapItems = [
   
   export default function Roadmap() {
     return (
-      <section className="bg-black text-white py-20" id="roadmap">
+      <section className="bg-[#021524] text-white py-20" id="roadmap">
         <div className="container mx-auto">
           <h2 className="text-3xl font-bold text-center mb-12">The Roadmap</h2>
           <div className="space-y-8">
