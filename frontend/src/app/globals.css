@@ -29,3 +29,17 @@ body {
     --radius: 0.5rem;
   }
 }
+
+@keyframes scroll {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%); /* Adjust based on the number of images */
+  }
+}
+
+.animate-scroll {
+  animation: scroll 20s linear infinite; /* Adjust duration as needed */
+  white-space: nowrap; /* Prevent wrapping */
+}

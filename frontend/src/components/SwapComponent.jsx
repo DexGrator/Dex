@@ -1,3 +1,4 @@
+"use client"
 import { useCallback, useEffect, useState } from "react";
 import debounce from "lodash.debounce";
 import { ArrowDownUp, Search, Plus } from "lucide-react";
