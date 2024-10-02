@@ -59,7 +59,7 @@ const Navbar = () => {
           {/* <span className="text-2xl font-bold bg-gradient-to-r from-blue-500 to-purple-500 text-transparent bg-clip-text">
             WEB3TASK
           </span> */}
-          <Image src={"/logo3.png"} width={200} height={1000} />
+          <Image src={"/logodex.png"} width={200} height={1000} />
         </Link>
 
         {/* Desktop Navigation */}
