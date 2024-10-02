@@ -25,7 +25,7 @@ const SwapPage = () => {
   }, []);
 
   return (
-    <div className="bg-[#021524] min-h-screen flex flex-col">
+    <div className="bg-gradient-to-b from-gray-900 to-black min-h-screen flex flex-col">
       <Navbar />
       <div className="flex justify-center items-center flex-1">
         <div className="w-full max-w-lg p-4">
