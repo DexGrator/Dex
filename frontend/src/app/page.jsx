@@ -12,7 +12,7 @@ import Integration from "@/components/integration";
 const Page = () => {
   console.log(process.env.NEXT_PUBLIC_HELIUS_API_KEY)
   return (
-    <div className="bg-[#021524]">
+    <div className="bg-gradient-to-b from-gray-900 to-black">
       <Header />
       <Hero />
       <ImageRoller/>

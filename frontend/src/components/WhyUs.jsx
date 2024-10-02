@@ -4,10 +4,11 @@ import { WobbleCard } from "@/components/ui/wobbleCard";
 
 const WhyUs = () => {
   return (
-    <div className="min-h-[100vh] flex justify-center items-center bg-[#021524] text-white">
+    <div className="min-h-[100vh] flex justify-center items-center text-white">
       <div className="container flex flex-col items-center pb-12">
-        <h1 className="max-w-screen text-2xl font-bold md:text-4xl lg:leading-[1.1] text-center">
-          Why Use Our Aggregator?
+        <h1 className="max-w-screen text-2xl font-bold md:text-4xl lg:leading-[1.1] text-center pb-12">
+          <span>Why Use </span> 
+          <span className="text-[#6100FF]">Our Aggregator?</span> 
         </h1>
 
         {/* Cards */}

@@ -3,12 +3,14 @@ import { Card } from "@/components/ui/card";
 
 const Growth = () => {
     return (
-        <div className="min-h-[100vh] pt-24 flex justify-center items-center bg-[#021524] text-white">
+        <div className="min-h-[100vh] pt-4 flex justify-center items-center text-white">
             <div className="container flex flex-col items-center pb-12">
                 {/* Centered Heading */}
                 <h1 className="text-2xl font-bold md:text-4xl lg:leading-[1.1] text-center mb-12">
-                    Be A Part Of Our Growth
+                    <span>Be A Part Of </span>
+                    <span className="text-[#6100FF]">Our Growth</span>
                 </h1>
+            
 
                 {/* Text Section */}
                 <div className="mt-4 flex flex-col items-start md:flex-row md:items-center md:space-x-8">

@@ -23,10 +23,10 @@ export default function ImageRoller() {
   }
 
   return (
-    <div className="w-full py-4 px-4 ">
+    <div className="w-[99vw] pt-12 px-4 overflow-hidden">
       <div className="flex animate-scroll gap-x-20"> {/* Adjust gap here */}
         {[...images, ...images].map((src, index) => (
-          <div key={index} className="flex-shrink-0 w-64 h-64">
+          <div key={index} className="flex-shrink-0 w-64 h-16">
             <Image
               src={src}
               alt={`Rolling image ${index + 1}`}

@@ -53,7 +53,7 @@ const Navbar = () => {
   };
 
   return (
-    <header className="bg-[#021524] text-white p-4">
+    <header className="text-white p-4">
       <div className="container mx-auto flex justify-between items-center">
         <Link href="/" className="flex items-center space-x-2">
           {/* <span className="text-2xl font-bold bg-gradient-to-r from-blue-500 to-purple-500 text-transparent bg-clip-text">

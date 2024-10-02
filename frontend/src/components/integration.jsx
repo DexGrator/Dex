@@ -13,7 +13,7 @@ const brands = [
 
 export default function Integration() {
   return (
-    <section className="py-20 bg-gradient-to-b from-gray-900 to-black text-white">
+    <section className="py-20 text-white">
       <div className="container mx-auto px-4">
         <h2 className="text-6xl font-bold text-center mb-8 bg-gradient-to-r from-blue-500 to-purple-600 text-transparent bg-clip-text">
           Integration
