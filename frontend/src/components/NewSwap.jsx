@@ -63,6 +63,86 @@ export default function NewSwap({ availableTokens }) {
   const wallet = useWallet();
   const connection = useSolanaConnection();
 
+  const Slider = ({ percentage, onPercentageChange, isLocked, isDisabled }) => {
+    const sliderRef = useRef(null);
+    const [isDragging, setIsDragging] = useState(false);
+    const [currentPercentage, setCurrentPercentage] = useState(percentage); // Local state for smooth visual feedback
+  
+    const handleMouseDown = (e) => {
+      if (!isLocked && !isDisabled) {
+        setIsDragging(true);
+        handleMouseMove(e);
+      }
+    };
+  
+    const handleMouseMove = (e) => {
+      if (isDragging && sliderRef.current && !isLocked && !isDisabled) {
+        const rect = sliderRef.current.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const newPercentage = Math.max(0, Math.min(100, (x / rect.width) * 100));
+        setCurrentPercentage(newPercentage); // Update local percentage for smoother UI feedback
+      }
+    };
+  
+    const handleMouseUp = () => {
+      if (isDragging) {
+        setIsDragging(false);
+        onPercentageChange(currentPercentage); // Commit the change when dragging ends
+      }
+    };
+  
+    // Use requestAnimationFrame for smoother movement
+    useEffect(() => {
+      const mouseMoveHandler = (e) => {
+        if (isDragging) {
+          requestAnimationFrame(() => handleMouseMove(e));
+        }
+      };
+  
+      const mouseUpHandler = () => handleMouseUp();
+  
+      document.addEventListener('mousemove', mouseMoveHandler);
+      document.addEventListener('mouseup', mouseUpHandler);
+  
+      return () => {
+        document.removeEventListener('mousemove', mouseMoveHandler);
+        document.removeEventListener('mouseup', mouseUpHandler);
+      };
+    }, [isDragging, currentPercentage]);
+  
+    useEffect(() => {
+      if (!isDragging) {
+        setCurrentPercentage(percentage); // Sync external percentage with local state
+      }
+    }, [percentage]);
+  
+    const activeColor = isDisabled ? "#4A4A4A" : "#03e1ff";
+    const inactiveColor = isDisabled ? "#2A2A2A" : "#1E1E1E";
+  
+    return (
+      <div
+        ref={sliderRef}
+        className="relative w-full h-8 bg-[#111111] rounded-lg cursor-pointer overflow-hidden"
+        onMouseDown={handleMouseDown}
+      >
+        {Array.from({ length: 31 }).map((_, i) => (
+          <div
+            key={i}
+            className="absolute top-0 bottom-0 w-px"
+            style={{
+              left: `${(i / 30) * 100}%`,
+              backgroundColor: i / 3 <= currentPercentage / 10 ? activeColor : inactiveColor,
+              opacity: i % 3 === 0 ? 1 : 0.5,
+              height: i % 3 === 0 ? '100%' : '50%',
+              top: i % 3 === 0 ? '0' : '25%',
+              transition: 'background-color 0.1s ease, height 0.1s ease, top 0.1s ease'
+            }}
+          />
+        ))}
+      </div>
+    );
+  };
+
   const fetchPrice = useCallback(
     debounce(async (fromTokens, toTokens, amount) => {
       if (!fromTokens.length || !toTokens.length || !amount) return;
@@ -164,31 +244,47 @@ export default function NewSwap({ availableTokens }) {
   };
 
   const handlePercentageChange = (index, percentage, section) => {
-    const newTokens = section === 'from' ? [...fromTokens] : [...toTokens];
-    const oldPercentage = newTokens[index].percentage || 0;
-    const percentageDiff = percentage - oldPercentage;
+    let newTokens = section === 'from' ? [...fromTokens] : [...toTokens];
+    const otherIndex = (index === 0) ? 1 : 0;
   
-    newTokens[index] = { ...newTokens[index], percentage };
+    // Ensure the input percentage stays within the range of 0% to 100%
+    percentage = Math.max(0, Math.min(100, percentage)); // Clamp percentage between 0 and 100
   
-    const unlockedTokens = newTokens.filter((_, i) => i !== index && !lockedTokens[section][i]);
-    const totalUnlockedPercentage = unlockedTokens.reduce((sum, token) => sum + (token.percentage || 0), 0);
+    if (newTokens.length === 2 && lockedTokens[section][index]) {
+      // Disable the lock automatically if only 2 tokens are present
+      setLockedTokens(prev => ({
+        ...prev,
+        [section]: { [index]: false }
+      }));
+    }
   
-    unlockedTokens.forEach((token) => {
-      const tokenIndex = newTokens.indexOf(token);
-      if (totalUnlockedPercentage > 0) {
-        const newTokenPercentage = Math.max(0, (token.percentage / totalUnlockedPercentage) * (totalUnlockedPercentage - percentageDiff));
-        newTokens[tokenIndex] = { ...token, percentage: newTokenPercentage };
-      } else {
-        newTokens[tokenIndex] = { ...token, percentage: 0 };
-      }
-    });
+    if (newTokens.length === 2) {
+      // Ensure the sum of tokens remains exactly 100%
+      const otherTokenPercentage = 100 - percentage;
+      newTokens[otherIndex].percentage = Math.max(0, otherTokenPercentage); // Clamp other token percentage
+    } else {
+      // Adjust unlocked tokens to maintain the total 100%
+      const unlockedTokens = newTokens.filter((_, i) => i !== index && !lockedTokens[section][i]);
+      const totalUnlockedPercentage = unlockedTokens.reduce((sum, token) => sum + (token.percentage || 0), 0);
+    
+      unlockedTokens.forEach((token) => {
+        const tokenIndex = newTokens.indexOf(token);
+        const adjustedPercentage = (token.percentage / totalUnlockedPercentage) * (100 - percentage); // Ensure total remains 100%
+        newTokens[tokenIndex].percentage = Math.max(0, Math.min(100, adjustedPercentage)); // Clamp each token percentage
+      });
+    }
   
+    newTokens[index].percentage = percentage;
+  
+    // Update state based on the section
     if (section === 'from') {
       setFromTokens(newTokens);
     } else {
       setToTokens(newTokens);
     }
   };
+  
+
 
   const handleLockToggle = (section, index) => {
     setLockedTokens(prev => ({
@@ -200,55 +296,7 @@ export default function NewSwap({ availableTokens }) {
     }));
   };
 
-  const CircularSlider = ({ percentage, onPercentageChange, isLocked }) => {
-    const [targetPercentage, setTargetPercentage] = useState(percentage);
   
-    // Function to simulate a physical scale movement
-    const handleScaleChange = (e) => {
-      if (!isLocked) {
-        const rect = e.target.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const newPercentage = Math.max(0, Math.min(100, (x / rect.width) * 100));
-        setTargetPercentage(newPercentage);
-        onPercentageChange(newPercentage);
-      }
-    };
-  
-    return (
-      <div
-        className="relative w-full h-8 bg-[#1E1E1E] rounded-lg cursor-pointer overflow-hidden"
-        onClick={handleScaleChange} // Change happens on click
-      >
-        <div className="absolute top-0 left-0 w-full h-full flex items-center justify-between px-2">
-          {Array.from({ length: 11 }).map((_, i) => (
-            <div
-              key={i}
-              className={`w-0.5 h-4 bg-white transition-opacity duration-300 ${
-                i * 10 <= targetPercentage ? "opacity-100" : "opacity-30"
-              }`}
-            />
-          ))}
-        </div>
-  
-        {/* The blue background to indicate the scale's "fill" */}
-        <motion.div
-          className="absolute top-0 left-0 h-full bg-[#03e1ff] rounded-lg opacity-30"
-          style={{ width: `${targetPercentage}%` }}
-          animate={{ width: `${targetPercentage}%` }} // Smoothly animating the fill
-          transition={{ type: "spring", stiffness: 100, damping: 20 }}
-        />
-  
-        {/* The moving handle simulating the swinging effect */}
-        <motion.div
-          className="absolute top-1/2 -translate-y-1/2 w-6 h-6 bg-white rounded-full shadow-lg flex items-center justify-center"
-          style={{ left: `calc(${targetPercentage}% - 12px)` }}
-          animate={{ left: `calc(${targetPercentage}% - 12px)` }} // Animating handle movement
-          transition={{ type: "spring", stiffness: 300, damping: 30 }}
-        />
-      </div>
-    );
-  };
-
   const renderTokenSection = (section, tokens) => (
     <div className="space-y-4">
       {tokens.length === 0 ? (
@@ -309,10 +357,11 @@ export default function NewSwap({ availableTokens }) {
                   placeholder="0%"
                 />
               </div>
-              <CircularSlider
+              <Slider
                 percentage={token.percentage || 0}
                 onPercentageChange={(newPercentage) => handlePercentageChange(index, newPercentage, section)}
                 isLocked={lockedTokens[section][index]}
+                isDisabled={tokens.length === 1}
               />
             </div>
           </div>
