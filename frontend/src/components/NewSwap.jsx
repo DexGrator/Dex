@@ -1,53 +1,21 @@
 "use client"
-import React ,{ useCallback, useEffect, useState } from "react";
+
+import React, { useCallback, useEffect, useState, useRef } from "react";
 import Image from 'next/image';
-import { Settings, BarChart2, Shield, RefreshCw, X, Plus, Search ,Lock} from 'lucide-react';
-import { fetchOneToOnePrice } from "@/service/jupiter-service"; // Your price fetching logic
+import { Settings, BarChart2, Shield, RefreshCw, X, Plus, Search, Lock } from 'lucide-react';
+import { fetchOneToOnePrice } from "@/service/jupiter-service";
 import { useWallet } from "@solana/wallet-adapter-react";
 import useSolanaConnection from "@/app/hooks/useSolanaConnect";
 import { TransactionExpiredBlockheightExceededError, VersionedTransaction } from "@solana/web3.js";
 import debounce from "lodash.debounce";
+import { motion, AnimatePresence } from "framer-motion";
+import SettingsPopup from './SettingsPopup'
+import SlippagePopup from './SlippagePopup'
+import MEVPopup from './MEVPopup'
+import TokenSelection from "./TokenSelection";
+import Slider from "./Slider";
 
-const TokenSelection = ({ onSelect, onClose, availableTokens }) => {
-  const [searchValue, setSearchValue] = useState("");
 
-  const filteredTokens = availableTokens.filter(token => 
-    token.name.toLowerCase().includes(searchValue.toLowerCase()) ||
-    token.symbol.toLowerCase().includes(searchValue.toLowerCase())
-  );
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-[#1E1E1E] rounded-lg p-4 w-80 max-h-[80vh] overflow-y-auto">
-        <h2 className="text-white text-lg font-semibold mb-4">Select Token</h2>
-        <div className="relative mb-4">
-          <input
-            type="text"
-            placeholder="Search tokens..."
-            value={searchValue}
-            onChange={(e) => setSearchValue(e.target.value)}
-            className="w-full bg-[#2C2C2C] text-white rounded-md p-2 pl-8"
-          />
-          <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
-        </div>
-        {filteredTokens.map((token) => (
-          <div
-            key={token.address}
-            className="flex items-center p-2 hover:bg-[#2C2C2C] cursor-pointer rounded"
-            onClick={() => {
-              onSelect(token);
-              onClose();
-            }}
-          >
-            <img src={token.logoURI} alt={token.name} width={24} height={24} className="mr-2" />
-            <span className="text-white mr-2">{token.symbol}</span>
-            <span className="text-gray-400 text-sm">{token.name}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
 
 export default function NewSwap({ availableTokens }) {
   const [showTokenSelection, setShowTokenSelection] = useState(false);
@@ -55,11 +23,59 @@ export default function NewSwap({ availableTokens }) {
   const [fromTokens, setFromTokens] = useState([]);
   const [toTokens, setToTokens] = useState([]);
   const [error, setError] = useState(null);
-  const [loading, setIsLoading] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [lockedTokens, setLockedTokens] = useState({ from: {}, to: {} });
+  const [showSettings, setShowSettings] = useState(false);
+  const [showSlippage, setShowSlippage] = useState(false);
+  const [showMEV, setShowMEV] = useState(false);
+  const [balance, setBalance] = useState(0);
 
   const wallet = useWallet();
   const connection = useSolanaConnection();
 
+  useEffect(() => {
+    const fetchBalance = async () => {
+      if (wallet.publicKey) {
+        try {
+          const walletBalance = await connection.getBalance(wallet.publicKey);
+          setBalance(walletBalance / 1e9); 
+        } catch (error) {
+          console.error('Error fetching balance:', error);
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+    fetchBalance();
+  }, [wallet.publicKey, connection]);
+
+  const [settings, setSettings] = useState({
+    gasPrice: 50,
+    gasPreset: 'normal',
+    deadline: 30,
+    expertMode: false,
+  });
+
+  const [slippage, setSlippage] = useState('auto');
+  const [mevProtection, setMEVProtection] = useState(true);
+
+  const handleSettingsChange = (newSettings) => {
+    setSettings((prevSettings) => ({ ...prevSettings, ...newSettings }));
+  };
+
+  const handleSlippageChange = (newSlippage) => {
+    setSlippage(newSlippage);
+  };
+
+  const handleMEVProtectionChange = (enabled) => {
+    setMEVProtection(enabled);
+  };
+
+  const getAllSelectedTokenAddresses = () => {
+    const fromAddresses = fromTokens.map(token => token.address);
+    const toAddresses = toTokens.map(token => token.address);
+    return [...fromAddresses, ...toAddresses];
+  };
 
   const fetchPrice = useCallback(
     debounce(async (fromTokens, toTokens) => {
@@ -289,15 +305,16 @@ export default function NewSwap({ availableTokens }) {
         setShowTokenSelection(false);
         return;
       }
-      console.log("HELLO WORLD")
-      setFromTokens([...fromTokens, token]); 
+      const newToken = { ...token, percentage: fromTokens.length === 0 ? 100 : 0 };
+      setFromTokens([...fromTokens, newToken]);
     } else if (activeInput === 'to') {
       if (fromTokens.length > 1) {
         setError("You can only select one 'to' token when multiple 'from' tokens are selected.");
         setShowTokenSelection(false);
         return;
       }
-      setToTokens([...toTokens, token]);
+      const newToken = { ...token, percentage: toTokens.length === 0 ? 100 : 0 };
+      setToTokens([...toTokens, newToken]);
     }
     setShowTokenSelection(false);
     fetchPrice(fromTokens, toTokens);
@@ -306,9 +323,19 @@ export default function NewSwap({ availableTokens }) {
 
   const handleRemoveToken = (section, index) => {
     if (section === 'from') {
-      setFromTokens(fromTokens.filter((_, i) => i !== index));
+      const newFromTokens = fromTokens.filter((_, i) => i !== index);
+      const totalPercentage = newFromTokens.reduce((sum, token) => sum + (token.percentage || 0), 0);
+      setFromTokens(newFromTokens.map(token => ({
+        ...token,
+        percentage: totalPercentage === 0 ? 100 / newFromTokens.length : (token.percentage / totalPercentage) * 100
+      })));
     } else {
-      setToTokens(toTokens.filter((_, i) => i !== index));
+      const newToTokens = toTokens.filter((_, i) => i !== index);
+      const totalPercentage = newToTokens.reduce((sum, token) => sum + (token.percentage || 0), 0);
+      setToTokens(newToTokens.map(token => ({
+        ...token,
+        percentage: totalPercentage === 0 ? 100 / newToTokens.length : (token.percentage / totalPercentage) * 100
+      })));
     }
     setError(null);
     fetchPrice(fromTokens, toTokens);
@@ -323,12 +350,95 @@ export default function NewSwap({ availableTokens }) {
       setError("You can't add multiple 'to' tokens when multiple 'from' tokens are selected.");
       return;
     }
+    
     setActiveInput(section);
     setShowTokenSelection(true);
     fetchPrice(fromTokens, toTokens)
     setError(null);
   };
 
+
+  const handlePercentageChange = (index, newPercentage, section) => {
+    let newTokens = section === 'from' ? [...fromTokens] : [...toTokens];
+    
+    // Handle negative percentages by setting to 0
+    newPercentage = Math.max(0, newPercentage);
+  
+    // Calculate the total percentage of locked tokens
+    const lockedPercentage = newTokens.reduce((sum, token, i) => 
+      sum + (lockedTokens[section][i] ? token.percentage : 0), 0);
+  
+    // If the current token is locked, unlock it
+    if (lockedTokens[section][index]) {
+      setLockedTokens(prev => ({
+        ...prev,
+        [section]: { ...prev[section], [index]: false }
+      }));
+    }
+  
+    // Set the new percentage for the current token
+    newTokens[index].percentage = newPercentage;
+  
+    // Calculate the remaining percentage to distribute
+    let remainingPercentage = 100 - lockedPercentage - newPercentage;
+  
+    // Get unlocked tokens excluding the current one
+    const unlockedTokens = newTokens.filter((_, i) => i !== index && !lockedTokens[section][i]);
+  
+    if (unlockedTokens.length > 0) {
+      // Distribute the remaining percentage proportionally among unlocked tokens
+      const totalUnlockedPercentage = unlockedTokens.reduce((sum, token) => sum + token.percentage, 0);
+  
+      unlockedTokens.forEach((token) => {
+        const tokenIndex = newTokens.indexOf(token);
+        if (totalUnlockedPercentage > 0) {
+          const adjustedPercentage = (token.percentage / totalUnlockedPercentage) * remainingPercentage;
+          newTokens[tokenIndex].percentage = Math.max(0, adjustedPercentage);
+        } else {
+          // If all unlocked tokens were at 0%, distribute evenly
+          newTokens[tokenIndex].percentage = Math.max(0, remainingPercentage / unlockedTokens.length);
+        }
+      });
+    }
+  
+    // Ensure the total is exactly 100%
+    const total = newTokens.reduce((sum, token) => sum + token.percentage, 0);
+    if (total !== 100) {
+      const diff = 100 - total;
+      // Distribute the difference among unlocked tokens
+      const unlockedIndices = newTokens.map((_, i) => i).filter(i => !lockedTokens[section][i]);
+      if (unlockedIndices.length > 0) {
+        const adjustmentPerToken = diff / unlockedIndices.length;
+        unlockedIndices.forEach(i => {
+          newTokens[i].percentage = Math.max(0, newTokens[i].percentage + adjustmentPerToken);
+        });
+      }
+    }
+  
+    // Round percentages to two decimal places
+    newTokens.forEach(token => {
+      token.percentage = Math.round(token.percentage * 100) / 100;
+    });
+  
+    if (section === 'from') {
+      setFromTokens(newTokens);
+    } else {
+      setToTokens(newTokens);
+    }
+  };
+  
+
+  const handleLockToggle = (section, index) => {
+    setLockedTokens(prev => ({
+      ...prev,
+      [section]: {
+        ...prev[section],
+        [index]: !prev[section][index]
+      }
+    }));
+  };
+
+  
   const renderTokenSection = (section, tokens) => (
     <div className="space-y-4">
       {tokens.length === 0 ? (
@@ -340,7 +450,10 @@ export default function NewSwap({ availableTokens }) {
         </div>
       ) : (
         tokens.map((token, index) => (
-          <div key={index} className="relative bg-black rounded-[20px] p-4">
+          <div 
+            key={index} 
+            className="relative bg-black rounded-[20px] p-4"
+          >
             <div className="absolute inset-0 rounded-[20px] p-[1px] bg-gradient-to-r from-[#03e1ff] to-[#03e1ff] via-transparent">
               <div className="w-full h-full bg-black rounded-[19px]" />
             </div>
@@ -356,40 +469,51 @@ export default function NewSwap({ availableTokens }) {
                     <X size={16} />
                   </button>
                 </div>
-                <div className="flex right-9">
-                  <Lock size={16} className="text-[#03e1ff] " />
+                <div className="flex items-center">
+                  <button
+                    onClick={() => handleLockToggle(section, index)}
+                    className={`mr-2 ${lockedTokens[section][index] ? 'text-[#03e1ff]' : 'text-gray-500'}`}
+                  >
+                    <Lock size={16} />
+                  </button>
                   <input
                     type="text"
                     value={token.value}
-                    onChange={(e) => {
-                      const newTokens = [...tokens];
-                      newTokens[index] = { ...newTokens[index], value: e.target.value };
-                      section === 'from' ? setFromTokens(newTokens) : setToTokens(newTokens);
-                      handleValueChange(index, e.target.value, section);
-                    }}
+                    onChange={(e) => handleValueChange(index, e.target.value, section)}
                     className="bg-transparent text-white text-right outline-none w-24"
                     placeholder="0"
                   />
                 </div>
               </div>
-              <div className="flex justify-end">
+              <div className="flex justify-end mb-2">
                 <input
-                  type="text"
-                  value={token.percentage || ''}
+                  type="number"
+                  value={token.percentage}
                   onChange={(e) => {
-                    const newTokens = [...tokens];
-                    newTokens[index] = { ...newTokens[index], percentage: e.target.value };
-                    section === 'from' ? setFromTokens(newTokens) : setToTokens(newTokens);
+                    const newPercentage = parseFloat(e.target.value);
+                    if (!isNaN(newPercentage)) {
+                      handlePercentageChange(index, newPercentage, section);
+                    }
                   }}
                   className="bg-transparent text-[#878787] text-right outline-none w-16 text-xs"
-                  placeholder="0%"
+                  placeholder="0"
+                  min="0"
+                  max="100"
+                  step="0.01"
                 />
+                <span className="text-[#878787] text-xs ml-0.5">%</span>
               </div>
+              <Slider
+                percentage={token.percentage || 0}
+                onPercentageChange={(newPercentage) => handlePercentageChange(index, newPercentage, section)}
+                isLocked={lockedTokens[section][index]}
+                isDisabled={tokens.length === 1 || lockedTokens[section][index]}
+              />
             </div>
           </div>
         ))
       )}
-      {tokens.length > 0 && (
+      {tokens.length > 0 && tokens.length < 5 && (
         <button
           onClick={() => handleAddToken(section)}
           className="text-[#03e1ff] mt-2 flex items-center justify-center w-6 h-6 rounded-full bg-[#1E1E1E] mx-auto"
@@ -408,13 +532,13 @@ export default function NewSwap({ availableTokens }) {
       <div className="relative z-10">
         <div className="flex justify-between mb-6">
           <div className="flex space-x-2">
-            <button className="text-white bg-black rounded-full p-2">
+          <button onClick={() => setShowSettings(true)} className="text-white bg-black rounded-full p-2">
               <Settings size={16} />
             </button>
-            <button className="text-white bg-black rounded-[30px] px-3 py-1 text-xs flex items-center">
+            <button onClick={() => setShowSlippage(true)} className="text-white bg-black rounded-[30px] px-3 py-1 text-xs flex items-center">
               <BarChart2 size={12} className="mr-1" /> Slippage
             </button>
-            <button className="text-white bg-black rounded-[30px] px-3 py-1 text-xs flex items-center">
+            <button onClick={() => setShowMEV(true)} className="text-white bg-black rounded-[30px] px-3 py-1 text-xs flex items-center">
               <Shield size={12} className="mr-1" /> MEV
             </button>
           </div>
@@ -424,7 +548,11 @@ export default function NewSwap({ availableTokens }) {
         </div>
 
         <div className="flex justify-end mb-4">
-          <div className="text-white text-sm mr-2">Balance: 1234</div>
+            {loading ? (
+            <div className="text-white text-sm mr-2">Loading balance...</div>
+          ) : (
+            <div className="text-white text-sm mr-2">Balance: {balance.toFixed(5)}</div>
+          )}
           <button className="bg-[#1E1E1E] text-[#03e1ff] text-xs rounded-full px-3 py-1 mr-2">HALF</button>
           <button className="bg-[#1E1E1E] text-[#03e1ff] text-xs rounded-full px-3 py-1">MAX</button>
         </div>
@@ -455,12 +583,34 @@ export default function NewSwap({ availableTokens }) {
             SWAP
           </button>
         </div>
+        
+        
       </div>
+      
       {showTokenSelection && (
         <TokenSelection 
           onSelect={handleTokenSelect} 
           onClose={() => setShowTokenSelection(false)} 
           availableTokens={availableTokens}
+          selectedTokens={getAllSelectedTokenAddresses()}
+        />
+      )}
+      {showSettings && (
+        <SettingsPopup
+          onClose={() => setShowSettings(false)}
+          onSettingsChange={handleSettingsChange}
+        />
+      )}
+      {showSlippage && (
+        <SlippagePopup
+          onClose={() => setShowSlippage(false)}
+          onSlippageChange={handleSlippageChange}
+        />
+      )}
+      {showMEV && (
+        <MEVPopup
+          onClose={() => setShowMEV(false)}
+          onMEVProtectionChange={handleMEVProtectionChange}
         />
       )}
     </div>
