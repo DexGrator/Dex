@@ -10,14 +10,14 @@ import { VersionedTransaction } from "@solana/web3.js";
 import debounce from "lodash.debounce";
 import { motion, AnimatePresence } from "framer-motion";
 
-const TokenSelection = ({ onSelect, onClose, availableTokens }) => {
+const TokenSelection = ({ onSelect, onClose, availableTokens,selectedTokens }) => {
   const [searchValue, setSearchValue] = useState("");
 
   const filteredTokens = availableTokens.filter(token => 
-    token.name.toLowerCase().includes(searchValue.toLowerCase()) ||
-    token.symbol.toLowerCase().includes(searchValue.toLowerCase())
+    !selectedTokens.includes(token.address) &&
+    (token.name.toLowerCase().includes(searchValue.toLowerCase()) ||
+    token.symbol.toLowerCase().includes(searchValue.toLowerCase()))
   );
-
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-[#1E1E1E] rounded-lg p-4 w-80 max-h-[80vh] overflow-y-auto">
@@ -62,6 +62,12 @@ export default function NewSwap({ availableTokens }) {
 
   const wallet = useWallet();
   const connection = useSolanaConnection();
+
+  const getAllSelectedTokenAddresses = () => {
+    const fromAddresses = fromTokens.map(token => token.address);
+    const toAddresses = toTokens.map(token => token.address);
+    return [...fromAddresses, ...toAddresses];
+  };
 
   const Slider = ({ percentage, onPercentageChange, isLocked, isDisabled }) => {
     const sliderRef = useRef(null);
@@ -238,10 +244,13 @@ export default function NewSwap({ availableTokens }) {
       setError("You can't add multiple 'to' tokens when multiple 'from' tokens are selected.");
       return;
     }
+    
     setActiveInput(section);
     setShowTokenSelection(true);
     setError(null);
   };
+  
+  
 
   const handlePercentageChange = (index, percentage, section) => {
     let newTokens = section === 'from' ? [...fromTokens] : [...toTokens];
@@ -437,6 +446,7 @@ export default function NewSwap({ availableTokens }) {
           onSelect={handleTokenSelect} 
           onClose={() => setShowTokenSelection(false)} 
           availableTokens={availableTokens}
+          selectedTokens={getAllSelectedTokenAddresses()}
         />
       )}
     </div>
