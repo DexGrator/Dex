@@ -27,25 +27,28 @@ const SwapPage = () => {
 
   return (
     <div className="bg-gradient-to-b from-gray-900 to-black min-h-screen flex flex-col">
-      <Navbar />
-      <div className="flex justify-center items-center flex-1">
-        <div className="w-full max-w-lg p-4">
-          {loading ? (
-            <div className="text-white text-center">Loading tokens...</div>
-          ) : error ? (
-            <div className="text-red-500 text-center">
-              Error fetching tokens: {error.message}
-            </div>
-          ) : availableTokens.length > 0 ? (
-            <NewSwap availableTokens={availableTokens} />
-          ) : (
-            <div className="text-white text-center">
-              No tokens available at the moment.
-            </div>
-          )}
+  <Navbar />
+  <div className="flex justify-center items-center flex-1">
+    <div className="w-full max-w-lg p-4">
+      {loading ? (
+        <div className="text-white text-center">Loading tokens...</div>
+      ) : error ? (
+        <div className="text-red-500 text-center">
+          Error fetching tokens: {error.message}
         </div>
-      </div>
+      ) : availableTokens.length > 0 ? (
+        <div className="flex justify-center">
+          <NewSwap availableTokens={availableTokens} />
+        </div>
+      ) : (
+        <div className="text-white text-center">
+          No tokens available at the moment.
+        </div>
+      )}
     </div>
+  </div>
+</div>
+
   );
 };
 
