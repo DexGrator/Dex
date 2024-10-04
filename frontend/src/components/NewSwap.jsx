@@ -5,7 +5,7 @@ import { Settings, BarChart2, Shield, RefreshCw, X, Plus, Search ,Lock} from 'lu
 import { fetchOneToOnePrice } from "@/service/jupiter-service"; // Your price fetching logic
 import { useWallet } from "@solana/wallet-adapter-react";
 import useSolanaConnection from "@/app/hooks/useSolanaConnect";
-import { VersionedTransaction } from "@solana/web3.js";
+import { TransactionExpiredBlockheightExceededError, VersionedTransaction } from "@solana/web3.js";
 import debounce from "lodash.debounce";
 
 const TokenSelection = ({ onSelect, onClose, availableTokens }) => {
@@ -62,33 +62,85 @@ export default function NewSwap({ availableTokens }) {
 
 
   const fetchPrice = useCallback(
-    debounce(async (fromTokens, toTokens, amount) => {
-      console.log({fromTokens})
-      if (!fromTokens.length || !toTokens.length || !amount) return;
+    debounce(async (fromTokens, toTokens) => {
+      console.log({fromTokens, toTokens})
+      if ((!fromTokens.length && !toTokens.length)) return;
   
       setIsLoading(true);
       try {
-        // Create an array of promises to fetch prices for each combination of fromToken and toToken
-        const results = await Promise.all(
-          fromTokens.map(async (fromToken) => {
-            return Promise.all(
-              toTokens.map(async (toToken) => {
-                // Fetch the price using the fetchOneToOnePrice function
-                const price = await fetchOneToOnePrice(fromToken.symbol, toToken.symbol);
+        let results = [];
+        let totalSolReceived = 0; // Variable to track total SOL received
   
-                return {
-                  ...toToken,
-                  value: price * amount * (toToken.percentage / 100), // Calculate the value
-                  fromToken: fromToken.symbol, // Optionally keep track of the fromToken used
-                };
-              })
-            );
-          })
-        );
+        // Case 1: Multiple fromTokens and a single toToken (e.g., SOL)
+        if (fromTokens.length > 1 && toTokens.length === 1) {
+          const toToken = toTokens[0]; // This should be SOL
+          
+          // For each fromToken, calculate the value and sum it up
+          const totalValue = await Promise.all(
+            fromTokens.map(async (fromToken) => {
+              const price = await fetchOneToOnePrice(fromToken.symbol, toToken.symbol); // Fetch price fromToken to SOL
+              const solAmount = price * (fromToken.amount || 0); // Amount of SOL for each fromToken
+              totalSolReceived += solAmount; // Add up the SOL amounts
+              return solAmount;
+            })
+          );
   
-        // Flatten the results array and filter out any null values
-        const flattenedResults = results.flat().filter(result => result !== null);
-        setToTokens(flattenedResults);
+          // Set the single toToken's value based on the total of fromTokens
+          results = [
+            {
+              ...toToken,
+              value: parseFloat(totalSolReceived.toFixed(toToken.decimals)), // Adjust decimals as per toToken's requirement
+            },
+          ];
+  
+          console.log(`Total SOL received: ${totalSolReceived}`);
+        }
+  
+        // Case 2: Single fromToken and multiple toTokens
+        else if (fromTokens.length === 1 && toTokens.length > 1) {
+          const fromToken = fromTokens[0];
+  
+          results = await Promise.all(
+            toTokens.map(async (toToken) => {
+              const price = await fetchOneToOnePrice(fromToken.symbol, toToken.symbol);
+              
+              // Calculate the value of each toToken based on its percentage
+              const value = price * fromToken.amount * ((toToken.percentage || 100) / 100);
+              
+              return {
+                ...toToken,
+                value: parseFloat(value.toFixed(toToken.decimals)), // Adjust decimals as per toToken's requirement
+              };
+            })
+          );
+        }
+  
+        // Case 3: One fromToken and one toToken (direct 1:1 swap)
+        else if (fromTokens.length === 1 && toTokens.length === 1) {
+          const fromToken = fromTokens[0];
+          const toToken = toTokens[0];
+  
+          // Fetch the price from fromToken to toToken
+          const price = await fetchOneToOnePrice(fromToken.symbol, toToken.symbol);
+  
+          // Calculate the final amount for the swap
+          const finalValue = price * amount;
+  
+          // Set the result with decimals handled
+          results = [
+            {
+              ...toToken,
+              value: parseFloat(finalValue.toFixed(toToken.decimals)), // Adjust to appropriate decimals
+            },
+          ];
+  
+          console.log(`Final value of ${toToken.symbol} received: ${finalValue}`);
+        }
+  
+        // Only update toTokens if results were generated
+        if (results.length > 0) {
+          setToTokens(results);
+        }
       } catch (error) {
         console.error("Error fetching conversion:", error);
       } finally {
@@ -97,15 +149,132 @@ export default function NewSwap({ availableTokens }) {
     }, 500),
     []
   );
+
+  const atomicSwap = async () => {
+    if (!wallet.connected || !wallet.signTransaction) {
+      console.error("Wallet is not connected or does not support signing transactions");
+      return;
+    }
   
+    console.log("Swap initiated", { fromTokens, toTokens });
+  
+    // Map new toTokens with correct address from availableTokens
+    const newToTokens = toTokens.map((token) => {
+      const availToken = availableTokens.find((tkn) => tkn.symbol === token.symbol);
+      return {
+        ...token,
+        address: availToken.address,
+      };
+    });
+  
+    console.log({ fromTokens, newToTokens });
+  
+    // Fetch transactions from the backend API
+    fetch("/api/swapv2", {
+      method: "POST",
+      body: JSON.stringify({
+        fromTokens: fromTokens,
+        toTokens: newToTokens,
+        publicKey: wallet.publicKey?.toString(),
+      }),
+    })
+      .then(async (res) => {
+        try {
+          // Response contains the swap transactions
+          const { swapTransactions } = await res.json();
+          console.log({ swapTransactions });
+  
+          // Sign and serialize transactions
+          const signedTransactions = await Promise.all(
+            swapTransactions.map(async ({ transaction }) => {
+              const swapTransactionBuf = Buffer.from(transaction.swapTransaction, 'base64');
+              const transact = VersionedTransaction.deserialize(swapTransactionBuf);
+              const signedTransaction = await wallet.signTransaction(transact);
+              return signedTransaction.serialize();
+            })
+          );
+  
+          // Helper function to confirm transaction
+          const confirmTransaction = async (transactionId) => {
+            const latestBlockHash = await connection.getLatestBlockhash();
+            await connection.confirmTransaction(
+              {
+                blockhash: latestBlockHash.blockhash,
+                lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
+                signature: transactionId,
+              },
+              "confirmed"
+            );
+            console.log(`https://solscan.io/tx/${transactionId}`)
+
+          };
+  
+          // Send and confirm transactions
+          let transactionIds = await Promise.all(
+            signedTransactions.map(async (rawTransaction, index) => {
+              try {
+                const transactionId = await connection.sendRawTransaction(rawTransaction, {
+                  skipPreflight: true,
+                  maxRetries: 2,
+                });
+                console.log(`https://solscan.io/tx/${transactionId}`);
+                await confirmTransaction(transactionId);
+                return { success: true, transactionId };
+              } catch (error) {
+                console.error(`Failed to send transaction ${index + 1}:`, error);
+                return { success: false, index, error };
+              }
+            })
+          );
+  
+          // Identify failed transactions and ask for user confirmation to retry
+          const failedTransactions = transactionIds.filter((t) => !t.success);
+          if (failedTransactions.length) {
+            const ans = confirm(
+              `${failedTransactions.length} transaction(s) failed. Do you want to retry?`
+            );
+  
+            if (ans) {
+              for (const { index } of failedTransactions) {
+                try {
+                  const retryTransactionId = await connection.sendRawTransaction(
+                    signedTransactions[index],
+                    {
+                      skipPreflight: true,
+                      maxRetries: 2,
+                    }
+                  );
+                  console.log(`Retried transaction: https://solscan.io/tx/${retryTransactionId}`);
+                  await confirmTransaction(retryTransactionId);
+                } catch (retryError) {
+                  console.error(`Retry for transaction ${index + 1} failed:`, retryError);
+                }
+              }
+            }
+          }
+  
+          // Notify success or partial success
+          if (failedTransactions.length === 0) {
+            alert("Multi-Token Swap Successful!");
+          } else {
+            alert(
+              `Swap partially successful! ${failedTransactions.length} transaction(s) failed. Check console for details.`
+            );
+          }
+        } catch (e) {
+          console.error("Failed to sign or send transactions: ", e);
+        }
+      });
+  };
 
   const handleValueChange = (index, value, direction) => {
     if (direction === "from") {
         const newFromTokens = [...fromTokens];
         newFromTokens[index].amount = value;
+      console.log({newFromTokens});
       setFromTokens(newFromTokens);
       console.log({fromTokens});
-      fetchPrice(fromTokens, toTokens, value);
+      fetchPrice(fromTokens, toTokens);
     } else {
       const newToTokens = [...toTokens];
       newToTokens[index].amount = value;
@@ -131,6 +300,7 @@ export default function NewSwap({ availableTokens }) {
       setToTokens([...toTokens, token]);
     }
     setShowTokenSelection(false);
+    fetchPrice(fromTokens, toTokens);
     setError(null);
   };
 
@@ -141,6 +311,7 @@ export default function NewSwap({ availableTokens }) {
       setToTokens(toTokens.filter((_, i) => i !== index));
     }
     setError(null);
+    fetchPrice(fromTokens, toTokens);
   };
 
   const handleAddToken = (section) => {
@@ -154,6 +325,7 @@ export default function NewSwap({ availableTokens }) {
     }
     setActiveInput(section);
     setShowTokenSelection(true);
+    fetchPrice(fromTokens, toTokens)
     setError(null);
   };
 
@@ -277,7 +449,9 @@ export default function NewSwap({ availableTokens }) {
           <div className="absolute inset-0 rounded-[20px] p-[1px] bg-gradient-to-r from-[#03e1ff] to-[#03e1ff] via-transparent">
             <div className="w-full h-full bg-black rounded-[19px]" />
           </div>
-          <button className="relative w-full bg-black text-white font-semibold rounded-[20px] p-3">
+          <button 
+          onClick={atomicSwap}
+          className="relative w-full bg-black text-white font-semibold rounded-[20px] p-3">
             SWAP
           </button>
         </div>
