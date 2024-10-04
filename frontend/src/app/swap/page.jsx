@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import SwapComponent from '@/components/SwapComponent';
 import Navbar from '@/components/Navbar';
 import { fetchAvailableTokens } from '@/service/jupiter-service';
+import NewSwap from '@/components/NewSwap';
 
 const SwapPage = () => {
   const [availableTokens, setAvailableTokens] = useState([]);
@@ -36,7 +37,7 @@ const SwapPage = () => {
               Error fetching tokens: {error.message}
             </div>
           ) : availableTokens.length > 0 ? (
-            <SwapComponent availableTokens={availableTokens} />
+            <NewSwap availableTokens={availableTokens} />
           ) : (
             <div className="text-white text-center">
               No tokens available at the moment.
