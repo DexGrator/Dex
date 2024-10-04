@@ -1,12 +1,14 @@
 "use client"
-import React ,{ useCallback, useEffect, useState } from "react";
+
+import React, { useCallback, useEffect, useState, useRef } from "react";
 import Image from 'next/image';
-import { Settings, BarChart2, Shield, RefreshCw, X, Plus, Search ,Lock} from 'lucide-react';
-import { fetchOneToOnePrice } from "@/service/jupiter-service"; // Your price fetching logic
+import { Settings, BarChart2, Shield, RefreshCw, X, Plus, Search, Lock } from 'lucide-react';
+import { fetchOneToOnePrice } from "@/service/jupiter-service";
 import { useWallet } from "@solana/wallet-adapter-react";
 import useSolanaConnection from "@/app/hooks/useSolanaConnect";
 import { VersionedTransaction } from "@solana/web3.js";
 import debounce from "lodash.debounce";
+import { motion, AnimatePresence } from "framer-motion";
 
 const TokenSelection = ({ onSelect, onClose, availableTokens }) => {
   const [searchValue, setSearchValue] = useState("");
@@ -56,37 +58,32 @@ export default function NewSwap({ availableTokens }) {
   const [toTokens, setToTokens] = useState([]);
   const [error, setError] = useState(null);
   const [loading, setIsLoading] = useState(false);
+  const [lockedTokens, setLockedTokens] = useState({ from: {}, to: {} });
 
   const wallet = useWallet();
   const connection = useSolanaConnection();
 
-
   const fetchPrice = useCallback(
     debounce(async (fromTokens, toTokens, amount) => {
-      console.log({fromTokens})
       if (!fromTokens.length || !toTokens.length || !amount) return;
   
       setIsLoading(true);
       try {
-        // Create an array of promises to fetch prices for each combination of fromToken and toToken
         const results = await Promise.all(
           fromTokens.map(async (fromToken) => {
             return Promise.all(
               toTokens.map(async (toToken) => {
-                // Fetch the price using the fetchOneToOnePrice function
                 const price = await fetchOneToOnePrice(fromToken.symbol, toToken.symbol);
-  
                 return {
                   ...toToken,
-                  value: price * amount * (toToken.percentage / 100), // Calculate the value
-                  fromToken: fromToken.symbol, // Optionally keep track of the fromToken used
+                  value: price * amount * (toToken.percentage / 100),
+                  fromToken: fromToken.symbol,
                 };
               })
             );
           })
         );
   
-        // Flatten the results array and filter out any null values
         const flattenedResults = results.flat().filter(result => result !== null);
         setToTokens(flattenedResults);
       } catch (error) {
@@ -97,14 +94,12 @@ export default function NewSwap({ availableTokens }) {
     }, 500),
     []
   );
-  
 
   const handleValueChange = (index, value, direction) => {
     if (direction === "from") {
-        const newFromTokens = [...fromTokens];
-        newFromTokens[index].amount = value;
+      const newFromTokens = [...fromTokens];
+      newFromTokens[index].amount = value;
       setFromTokens(newFromTokens);
-      console.log({fromTokens});
       fetchPrice(fromTokens, toTokens, value);
     } else {
       const newToTokens = [...toTokens];
@@ -120,15 +115,16 @@ export default function NewSwap({ availableTokens }) {
         setShowTokenSelection(false);
         return;
       }
-      console.log("HELLO WORLD")
-      setFromTokens([...fromTokens, token]); 
+      const newToken = { ...token, percentage: fromTokens.length === 0 ? 100 : 0 };
+      setFromTokens([...fromTokens, newToken]);
     } else if (activeInput === 'to') {
       if (fromTokens.length > 1) {
         setError("You can only select one 'to' token when multiple 'from' tokens are selected.");
         setShowTokenSelection(false);
         return;
       }
-      setToTokens([...toTokens, token]);
+      const newToken = { ...token, percentage: toTokens.length === 0 ? 100 : 0 };
+      setToTokens([...toTokens, newToken]);
     }
     setShowTokenSelection(false);
     setError(null);
@@ -136,9 +132,19 @@ export default function NewSwap({ availableTokens }) {
 
   const handleRemoveToken = (section, index) => {
     if (section === 'from') {
-      setFromTokens(fromTokens.filter((_, i) => i !== index));
+      const newFromTokens = fromTokens.filter((_, i) => i !== index);
+      const totalPercentage = newFromTokens.reduce((sum, token) => sum + (token.percentage || 0), 0);
+      setFromTokens(newFromTokens.map(token => ({
+        ...token,
+        percentage: totalPercentage === 0 ? 100 / newFromTokens.length : (token.percentage / totalPercentage) * 100
+      })));
     } else {
-      setToTokens(toTokens.filter((_, i) => i !== index));
+      const newToTokens = toTokens.filter((_, i) => i !== index);
+      const totalPercentage = newToTokens.reduce((sum, token) => sum + (token.percentage || 0), 0);
+      setToTokens(newToTokens.map(token => ({
+        ...token,
+        percentage: totalPercentage === 0 ? 100 / newToTokens.length : (token.percentage / totalPercentage) * 100
+      })));
     }
     setError(null);
   };
@@ -157,6 +163,92 @@ export default function NewSwap({ availableTokens }) {
     setError(null);
   };
 
+  const handlePercentageChange = (index, percentage, section) => {
+    const newTokens = section === 'from' ? [...fromTokens] : [...toTokens];
+    const oldPercentage = newTokens[index].percentage || 0;
+    const percentageDiff = percentage - oldPercentage;
+  
+    newTokens[index] = { ...newTokens[index], percentage };
+  
+    const unlockedTokens = newTokens.filter((_, i) => i !== index && !lockedTokens[section][i]);
+    const totalUnlockedPercentage = unlockedTokens.reduce((sum, token) => sum + (token.percentage || 0), 0);
+  
+    unlockedTokens.forEach((token) => {
+      const tokenIndex = newTokens.indexOf(token);
+      if (totalUnlockedPercentage > 0) {
+        const newTokenPercentage = Math.max(0, (token.percentage / totalUnlockedPercentage) * (totalUnlockedPercentage - percentageDiff));
+        newTokens[tokenIndex] = { ...token, percentage: newTokenPercentage };
+      } else {
+        newTokens[tokenIndex] = { ...token, percentage: 0 };
+      }
+    });
+  
+    if (section === 'from') {
+      setFromTokens(newTokens);
+    } else {
+      setToTokens(newTokens);
+    }
+  };
+
+  const handleLockToggle = (section, index) => {
+    setLockedTokens(prev => ({
+      ...prev,
+      [section]: {
+        ...prev[section],
+        [index]: !prev[section][index]
+      }
+    }));
+  };
+
+  const CircularSlider = ({ percentage, onPercentageChange, isLocked }) => {
+    const [targetPercentage, setTargetPercentage] = useState(percentage);
+  
+    // Function to simulate a physical scale movement
+    const handleScaleChange = (e) => {
+      if (!isLocked) {
+        const rect = e.target.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const newPercentage = Math.max(0, Math.min(100, (x / rect.width) * 100));
+        setTargetPercentage(newPercentage);
+        onPercentageChange(newPercentage);
+      }
+    };
+  
+    return (
+      <div
+        className="relative w-full h-8 bg-[#1E1E1E] rounded-lg cursor-pointer overflow-hidden"
+        onClick={handleScaleChange} // Change happens on click
+      >
+        <div className="absolute top-0 left-0 w-full h-full flex items-center justify-between px-2">
+          {Array.from({ length: 11 }).map((_, i) => (
+            <div
+              key={i}
+              className={`w-0.5 h-4 bg-white transition-opacity duration-300 ${
+                i * 10 <= targetPercentage ? "opacity-100" : "opacity-30"
+              }`}
+            />
+          ))}
+        </div>
+  
+        {/* The blue background to indicate the scale's "fill" */}
+        <motion.div
+          className="absolute top-0 left-0 h-full bg-[#03e1ff] rounded-lg opacity-30"
+          style={{ width: `${targetPercentage}%` }}
+          animate={{ width: `${targetPercentage}%` }} // Smoothly animating the fill
+          transition={{ type: "spring", stiffness: 100, damping: 20 }}
+        />
+  
+        {/* The moving handle simulating the swinging effect */}
+        <motion.div
+          className="absolute top-1/2 -translate-y-1/2 w-6 h-6 bg-white rounded-full shadow-lg flex items-center justify-center"
+          style={{ left: `calc(${targetPercentage}% - 12px)` }}
+          animate={{ left: `calc(${targetPercentage}% - 12px)` }} // Animating handle movement
+          transition={{ type: "spring", stiffness: 300, damping: 30 }}
+        />
+      </div>
+    );
+  };
+
   const renderTokenSection = (section, tokens) => (
     <div className="space-y-4">
       {tokens.length === 0 ? (
@@ -168,7 +260,10 @@ export default function NewSwap({ availableTokens }) {
         </div>
       ) : (
         tokens.map((token, index) => (
-          <div key={index} className="relative bg-black rounded-[20px] p-4">
+          <div 
+            key={index} 
+            className="relative bg-black rounded-[20px] p-4"
+          >
             <div className="absolute inset-0 rounded-[20px] p-[1px] bg-gradient-to-r from-[#03e1ff] to-[#03e1ff] via-transparent">
               <div className="w-full h-full bg-black rounded-[19px]" />
             </div>
@@ -184,35 +279,41 @@ export default function NewSwap({ availableTokens }) {
                     <X size={16} />
                   </button>
                 </div>
-                <div className="flex right-9">
-                  <Lock size={16} className="text-[#03e1ff] " />
+                <div className="flex items-center">
+                  <button
+                    onClick={() => handleLockToggle(section, index)}
+                    className={`mr-2 ${lockedTokens[section][index] ? 'text-[#03e1ff]' : 'text-gray-500'}`}
+                  >
+                    <Lock size={16} />
+                  </button>
                   <input
                     type="text"
                     value={token.value}
-                    onChange={(e) => {
-                      const newTokens = [...tokens];
-                      newTokens[index] = { ...newTokens[index], value: e.target.value };
-                      section === 'from' ? setFromTokens(newTokens) : setToTokens(newTokens);
-                      handleValueChange(index, e.target.value, section);
-                    }}
+                    onChange={(e) => handleValueChange(index, e.target.value, section)}
                     className="bg-transparent text-white text-right outline-none w-24"
                     placeholder="0"
                   />
                 </div>
               </div>
-              <div className="flex justify-end">
+              <div className="flex justify-end mb-2">
                 <input
                   type="text"
-                  value={token.percentage || ''}
+                  value={`${token.percentage?.toFixed(2) || 0}%`}
                   onChange={(e) => {
-                    const newTokens = [...tokens];
-                    newTokens[index] = { ...newTokens[index], percentage: e.target.value };
-                    section === 'from' ? setFromTokens(newTokens) : setToTokens(newTokens);
+                    const newPercentage = parseFloat(e.target.value);
+                    if (!isNaN(newPercentage) && newPercentage >= 0 && newPercentage <= 100) {
+                      handlePercentageChange(index, newPercentage, section);
+                    }
                   }}
                   className="bg-transparent text-[#878787] text-right outline-none w-16 text-xs"
                   placeholder="0%"
                 />
               </div>
+              <CircularSlider
+                percentage={token.percentage || 0}
+                onPercentageChange={(newPercentage) => handlePercentageChange(index, newPercentage, section)}
+                isLocked={lockedTokens[section][index]}
+              />
             </div>
           </div>
         ))
