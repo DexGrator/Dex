@@ -17,7 +17,7 @@ export default function Footer() {
               Join our Discord channel or follow us on Twitter to keep up to date with our latest work and announcements.
             </p>
             <div className="flex space-x-4">
-              <Link href="#" className="text-gray-400 hover:text-white transition-colors">
+              <Link href="https://x.com/DexGrator" className="text-gray-400 hover:text-white transition-colors">
                 <FaTwitter size={24} />
               </Link>
               <Link href="#" className="text-gray-400 hover:text-white transition-colors">
@@ -38,7 +38,7 @@ export default function Footer() {
             <h3 className="text-lg font-semibold mb-4">Community</h3>
             <ul className="space-y-2">
               <li><Link href="/documentation" className="text-gray-400 hover:text-white transition-colors">Documentation</Link></li>
-              <li><Link href="/web3dev" className="text-gray-400 hover:text-white transition-colors">Web3Dev</Link></li>
+{/*               <li><Link href="/web3dev" className="text-gray-400 hover:text-white transition-colors">Web3Dev</Link></li> */}
               <li><Link href="/linktree" className="text-gray-400 hover:text-white transition-colors">LinkTree</Link></li>
             </ul>
           </div>
