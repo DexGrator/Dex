@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState } from "react";
 import Image from "next/image";
 import { Settings, BarChart2, Shield, RefreshCw, X, Plus } from "lucide-react";
