@@ -31,6 +31,8 @@ export default function NewSwap({ availableTokens }) {
   const [showMEV, setShowMEV] = useState(false);
   const [balance, setBalance] = useState(0);
   const [swapping, setSwapping] = useState(false);
+  const [fromTokensToDelete, setFromTokensToDelete] = useState([]);
+  const [toTokensToDelete, setToTokensToDelete] = useState([]);
 
   const wallet = useWallet();
   const connection = useSolanaConnection();
@@ -81,30 +83,30 @@ export default function NewSwap({ availableTokens }) {
 
   
   const fetchPrice = useCallback(
-    debounce(async (fromTokens, toTokens) => {
+    debounce(async (fromTokens, toTokens,callback) => {
       console.log({fromTokens, toTokens})
       if ((!fromTokens.length && !toTokens.length)) return;
   
       setLoading(true);
       try {
         let results = [];
-        let totalSolReceived = 0; // Variable to track total SOL received
+        let totalSolReceived = 0; 
   
-        // Case 1: Multiple fromTokens and a single toToken (e.g., SOL)
+        
         if (fromTokens.length > 1 && toTokens.length === 1) {
-          const toToken = toTokens[0]; // This should be SOL
+          const toToken = toTokens[0]; 
           
-          // For each fromToken, calculate the value and sum it up
+          
           const totalValue = await Promise.all(
             fromTokens.map(async (fromToken) => {
               const price = await fetchOneToOnePrice(fromToken.symbol, toToken.symbol); // Fetch price fromToken to SOL
               const solAmount = price * (fromToken.amount || 0) * (fromToken.percentage / 100); // Amount of SOL for each fromToken
-              totalSolReceived += solAmount; // Add up the SOL amounts
+              totalSolReceived += solAmount; 
               return solAmount;
             })
           );
   
-          // Set the single toToken's value based on the total of fromTokens
+          
           results = [
             {
               ...toToken,
@@ -115,7 +117,6 @@ export default function NewSwap({ availableTokens }) {
           console.log(`Total SOL received: ${totalSolReceived}`);
         }
   
-        // Case 2: Single fromToken and multiple toTokens
         else if (fromTokens.length === 1 && toTokens.length > 1) {
           const fromToken = fromTokens[0];
   
@@ -123,51 +124,70 @@ export default function NewSwap({ availableTokens }) {
             toTokens.map(async (toToken) => {
               const price = await fetchOneToOnePrice(fromToken.symbol, toToken.symbol);
               
-              // Calculate the value of each toToken based on its percentage
+              
               const value = price * fromToken.amount * ((toToken.percentage || 100) / 100);
               
               return {
                 ...toToken,
-                value: parseFloat(value), // Adjust decimals as per toToken's requirement
+                value: parseFloat(value), 
               };
             })
           );
         }
   
-        // Case 3: One fromToken and one toToken (direct 1:1 swap)
+       
         else if (fromTokens.length === 1 && toTokens.length === 1) {
           const fromToken = fromTokens[0];
           const toToken = toTokens[0];
   
-          // Fetch the price from fromToken to toToken
           const price = await fetchOneToOnePrice(fromToken.symbol, toToken.symbol);
   
-          // Calculate the final amount for the swap
           const finalValue = price * (fromToken.amount || 0);
   
-          // Set the result with decimals handled
           results = [
             {
               ...toToken,
-              value: parseFloat(finalValue.toFixed(toToken.decimals)), // Adjust to appropriate decimals
+              value: parseFloat(finalValue.toFixed(toToken.decimals)), 
             },
           ];
           console.log({results})
           console.log(`Final value of ${toToken.symbol} received: ${finalValue}`);
         }
-  
-        // Only update toTokens if results were generated
-        if (results.length > 0) {
-          setToTokens(results);
+        if(typeof callback === 'function'){
+          callback(results);
         }
+
       } catch (error) {
         console.error("Error fetching conversion:", error);
       } finally {
         setLoading(false);
+
       }
     }, 500),
     []
   );
+
+  useEffect(() => {
+    const handleTokenDeletion = async () => {
+      let updatedFromTokens = fromTokens.filter((_, index) => !fromTokensToDelete.includes(index));
+      let updatedToTokens = toTokens.filter((_, index) => !toTokensToDelete.includes(index));
+
+      if (fromTokensToDelete.length > 0 || toTokensToDelete.length > 0) {
+        setFromTokens(updatedFromTokens);
+        setToTokens(updatedToTokens);
+        setFromTokensToDelete([]);
+        setToTokensToDelete([]);
+
+        await fetchPrice(updatedFromTokens, updatedToTokens, (results) => {
+          if (results.length > 0) {
+            setToTokens(results);
+          }
+        });
+      }
+    };
+
+    handleTokenDeletion();
+  }, [fromTokensToDelete, toTokensToDelete, fromTokens, toTokens, fetchPrice]);
 
   const atomicSwap = async () => {
     if (!wallet.connected || !wallet.signTransaction) {
@@ -292,12 +312,14 @@ export default function NewSwap({ availableTokens }) {
 
   const handleValueChange = (index, value, direction) => {
     if (direction === "from") {
-        const newFromTokens = [...fromTokens];
-        newFromTokens[index].amount = value;
-      console.log({newFromTokens});
+      const newFromTokens = [...fromTokens];
+      newFromTokens[index].amount = value;
       setFromTokens(newFromTokens);
-      console.log({fromTokens});
-      fetchPrice(fromTokens, toTokens);
+      fetchPrice(newFromTokens, toTokens, (results) => {
+        if (results.length > 0) {
+          setToTokens(results);
+        }
+      });
     } else {
       const newToTokens = [...toTokens];
       newToTokens[index].amount = value;
@@ -333,23 +355,15 @@ export default function NewSwap({ availableTokens }) {
 
   const handleRemoveToken = (section, index) => {
     if (section === 'from') {
-      const newFromTokens = fromTokens.filter((_, i) => i !== index);
-      const totalPercentage = newFromTokens.reduce((sum, token) => sum + (token.percentage || 0), 0);
-      setFromTokens(newFromTokens.map(token => ({
-        ...token,
-        percentage: totalPercentage === 0 ? 100 / newFromTokens.length : (token.percentage / totalPercentage) * 100
-      })));
+      setFromTokensToDelete(prev => [...prev, index]);
     } else {
-      const newToTokens = toTokens.filter((_, i) => i !== index);
-      const totalPercentage = newToTokens.reduce((sum, token) => sum + (token.percentage || 0), 0);
-      setToTokens(newToTokens.map(token => ({
-        ...token,
-        percentage: totalPercentage === 0 ? 100 / newToTokens.length : (token.percentage / totalPercentage) * 100
-      })));
+      setToTokensToDelete(prev => [...prev, index]);
     }
     setError(null);
-    fetchPrice(fromTokens, toTokens);
   };
+
+  
+
 
   const handleAddToken = (section) => {
     if (section === 'from' && toTokens.length > 1 && fromTokens.length === 1) {
@@ -409,7 +423,6 @@ export default function NewSwap({ availableTokens }) {
           newTokens[tokenIndex].percentage = Math.max(0, remainingPercentage / unlockedTokens.length);
         }
       });
-      
     }
   
     // Ensure the total is exactly 100%
@@ -437,7 +450,11 @@ export default function NewSwap({ availableTokens }) {
       setToTokens(newTokens);
     }
 
-    fetchPrice(fromTokens, toTokens)
+    fetchPrice(section === 'from' ? newTokens : fromTokens, section === 'to' ? newTokens : toTokens, (results) => {
+      if (results.length > 0) {
+        setToTokens(results);
+      }
+    });
   };
   
 

@@ -5,7 +5,7 @@ import { Button } from "../app/ui/buttons";
 import { Menu, X } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "../app/ui/sheet";
 import SolanaWalletConnect from "./SolanaWalletConnect.jsx";
-import { useWalletModal } from "@solana/wallet-adapter-react-ui";
+import { useWalletModal,WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { useWallet } from "@solana/wallet-adapter-react";
 import {
   Dialog,
@@ -65,7 +65,7 @@ const Navbar = () => {
         {/* Desktop Navigation */}
         <nav className="hidden lg:flex space-x-6">
           <Link href="/" className="hover:text-blue-400">Home</Link>
-          <Link href="/" className="hover:text-blue-400" onClick={() => scrolltoHash("roadmap")}>Roadmap</Link>
+          <Link href="#roadmap" className="hover:text-blue-400">Roadmap</Link>
           <Link href="/swap" className="hover:text-blue-400">Swap</Link>
           {/* <Link href="/" className="hover:text-blue-400">Docs</Link>
           <Link href="/" className="hover:text-blue-400">Contact</Link> */}
@@ -75,9 +75,10 @@ const Navbar = () => {
         <div className="hidden lg:block">
           <Dialog open={isCustomDialogOpen} onOpenChange={setIsCustomDialogOpen} className="text-white">
             <DialogTrigger asChild>
-              <Button variant="outline" className="text-md md:w-36 md:h-12 m-0 text-white">
-                Connect
-              </Button>
+              {/* <Button variant="outline" className="text-md md:w-36 md:h-12 m-0 text-white"> */}
+                {/* Connect
+              </Button> */}
+              <WalletMultiButton />
             </DialogTrigger>
             <DialogContent className="sm:max-w-[425px] h-[300px] md:h-[400px] text-white lg:h-[400px] w-[90vw] sm:w-[425px] bg-white/10 backdrop-blur-sm flex flex-col justify-center items-center">
               <DialogHeader className="text-center text-white">
