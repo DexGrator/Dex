@@ -15,7 +15,7 @@ const TokenSelection = ({ onSelect, onClose }) => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-[#1E1E1E]  p-4 w-80">
+      <div className="bg-[#1E1E1E] rounded-lg p-4 w-80">
         <h2 className="text-white text-lg font-semibold mb-4">Select Token</h2>
         {tokens.map((token) => (
           <div
