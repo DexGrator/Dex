@@ -61,7 +61,7 @@ export default function SettingsPopup({ onClose, onSettingsChange }) {
             step={1}
             className="w-full"
           />
-          <div className="text-white text-sm mt-1">Current: {gasPrice} GWEI</div>
+          <div className="text-white text-sm mt-1">Current: {gasPrice} LAMPORTS</div>
         </div>
 
         <div>

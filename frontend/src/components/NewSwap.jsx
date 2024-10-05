@@ -14,6 +14,7 @@ import SlippagePopup from './SlippagePopup'
 import MEVPopup from './MEVPopup'
 import TokenSelection from "./TokenSelection";
 import Slider from "./Slider";
+import { fromPairs } from "lodash";
 
 
 
@@ -29,6 +30,7 @@ export default function NewSwap({ availableTokens }) {
   const [showSlippage, setShowSlippage] = useState(false);
   const [showMEV, setShowMEV] = useState(false);
   const [balance, setBalance] = useState(0);
+  const [swapping, setSwapping] = useState(false);
 
   const wallet = useWallet();
   const connection = useSolanaConnection();
@@ -77,44 +79,225 @@ export default function NewSwap({ availableTokens }) {
     return [...fromAddresses, ...toAddresses];
   };
 
+  
   const fetchPrice = useCallback(
-    debounce(async (fromTokens, toTokens, amount) => {
-      if (!fromTokens.length || !toTokens.length || !amount) return;
+    debounce(async (fromTokens, toTokens) => {
+      console.log({fromTokens, toTokens})
+      if ((!fromTokens.length && !toTokens.length)) return;
   
-      setIsLoading(true);
+      setLoading(true);
       try {
-        const results = await Promise.all(
-          fromTokens.map(async (fromToken) => {
-            return Promise.all(
-              toTokens.map(async (toToken) => {
-                const price = await fetchOneToOnePrice(fromToken.symbol, toToken.symbol);
-                return {
-                  ...toToken,
-                  value: price * amount * (toToken.percentage / 100),
-                  fromToken: fromToken.symbol,
-                };
-              })
-            );
-          })
-        );
+        let results = [];
+        let totalSolReceived = 0; // Variable to track total SOL received
   
-        const flattenedResults = results.flat().filter(result => result !== null);
-        setToTokens(flattenedResults);
+        // Case 1: Multiple fromTokens and a single toToken (e.g., SOL)
+        if (fromTokens.length > 1 && toTokens.length === 1) {
+          const toToken = toTokens[0]; // This should be SOL
+          
+          // For each fromToken, calculate the value and sum it up
+          const totalValue = await Promise.all(
+            fromTokens.map(async (fromToken) => {
+              const price = await fetchOneToOnePrice(fromToken.symbol, toToken.symbol); // Fetch price fromToken to SOL
+              const solAmount = price * (fromToken.amount || 0) * (fromToken.percentage / 100); // Amount of SOL for each fromToken
+              totalSolReceived += solAmount; // Add up the SOL amounts
+              return solAmount;
+            })
+          );
+  
+          // Set the single toToken's value based on the total of fromTokens
+          results = [
+            {
+              ...toToken,
+              value: parseFloat(totalSolReceived.toFixed(toToken.decimals)), // Adjust decimals as per toToken's requirement
+            },
+          ];
+  
+          console.log(`Total SOL received: ${totalSolReceived}`);
+        }
+  
+        // Case 2: Single fromToken and multiple toTokens
+        else if (fromTokens.length === 1 && toTokens.length > 1) {
+          const fromToken = fromTokens[0];
+  
+          results = await Promise.all(
+            toTokens.map(async (toToken) => {
+              const price = await fetchOneToOnePrice(fromToken.symbol, toToken.symbol);
+              
+              // Calculate the value of each toToken based on its percentage
+              const value = price * fromToken.amount * ((toToken.percentage || 100) / 100);
+              
+              return {
+                ...toToken,
+                value: parseFloat(value), // Adjust decimals as per toToken's requirement
+              };
+            })
+          );
+        }
+  
+        // Case 3: One fromToken and one toToken (direct 1:1 swap)
+        else if (fromTokens.length === 1 && toTokens.length === 1) {
+          const fromToken = fromTokens[0];
+          const toToken = toTokens[0];
+  
+          // Fetch the price from fromToken to toToken
+          const price = await fetchOneToOnePrice(fromToken.symbol, toToken.symbol);
+  
+          // Calculate the final amount for the swap
+          const finalValue = price * (fromToken.amount || 0);
+  
+          // Set the result with decimals handled
+          results = [
+            {
+              ...toToken,
+              value: parseFloat(finalValue.toFixed(toToken.decimals)), // Adjust to appropriate decimals
+            },
+          ];
+          console.log({results})
+          console.log(`Final value of ${toToken.symbol} received: ${finalValue}`);
+        }
+  
+        // Only update toTokens if results were generated
+        if (results.length > 0) {
+          setToTokens(results);
+        }
       } catch (error) {
         console.error("Error fetching conversion:", error);
       } finally {
-        setIsLoading(false);
+        setLoading(false);
       }
     }, 500),
     []
   );
 
+  const atomicSwap = async () => {
+    if (!wallet.connected || !wallet.signTransaction) {
+      console.error("Wallet is not connected or does not support signing transactions");
+      return;
+    }
+  
+    console.log("Swap initiated", { fromTokens, toTokens });
+  
+    // Map new toTokens with correct address from availableTokens
+    const newToTokens = toTokens.map((token) => {
+      const availToken = availableTokens.find((tkn) => tkn.symbol === token.symbol);
+      return {
+        ...token,
+        address: availToken.address,
+      };
+    });
+  
+    console.log({ fromTokens, newToTokens });
+  
+    // Fetch transactions from the backend API
+    fetch("/api/swapv2", {
+      method: "POST",
+      body: JSON.stringify({
+        fromTokens: fromTokens,
+        toTokens: newToTokens,
+        publicKey: wallet.publicKey?.toString(),
+        slippage: slippage === 'auto' ? 0.8 : parseFloat(slippage),
+        priorityFees: settings.gasPrice,
+      }),
+    })
+      .then(async (res) => {
+        try {
+          // Response contains the swap transactions
+          const { swapTransactions } = await res.json();
+          console.log({ swapTransactions });
+          setSwapping(true);
+  
+          // Sign and serialize transactions
+          const signedTransactions = await Promise.all(
+            swapTransactions.map(async ({ transaction }) => {
+              const swapTransactionBuf = Buffer.from(transaction.swapTransaction, 'base64');
+              const transact = VersionedTransaction.deserialize(swapTransactionBuf);
+              const signedTransaction = await wallet.signTransaction(transact);
+              return signedTransaction.serialize();
+            })
+          );
+  
+          // Helper function to confirm transaction
+          const confirmTransaction = async (transactionId) => {
+            const latestBlockHash = await connection.getLatestBlockhash();
+            await connection.confirmTransaction(
+              {
+                blockhash: latestBlockHash.blockhash,
+                lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
+                signature: transactionId,
+              },
+              "confirmed"
+            );
+            console.log(`https://solscan.io/tx/${transactionId}`)
+
+          };
+  
+          // Send and confirm transactions
+          let transactionIds = await Promise.all(
+            signedTransactions.map(async (rawTransaction, index) => {
+              try {
+                const transactionId = await connection.sendRawTransaction(rawTransaction, {
+                  skipPreflight: true,
+                  maxRetries: 2,
+                });
+                await confirmTransaction(transactionId);
+                return { success: true, transactionId };
+              } catch (error) {
+                console.error(`Failed to send transaction ${index + 1}:`, error);
+                return { success: false, index, error };
+              }
+            })
+          );
+  
+          // Identify failed transactions and ask for user confirmation to retry
+          const failedTransactions = transactionIds.filter((t) => !t.success);
+          if (failedTransactions.length) {
+            const ans = confirm(
+              `${failedTransactions.length} transaction(s) failed. Do you want to retry?`
+            );
+  
+            if (ans) {
+              for (const { index } of failedTransactions) {
+                try {
+                  const retryTransactionId = await connection.sendRawTransaction(
+                    signedTransactions[index],
+                    {
+                      skipPreflight: true,
+                      maxRetries: 2,
+                    }
+                  );
+                  console.log(`Retried transaction: https://solscan.io/tx/${retryTransactionId}`);
+                  await confirmTransaction(retryTransactionId);
+                } catch (retryError) {
+                  console.error(`Retry for transaction ${index + 1} failed:`, retryError);
+                }
+              }
+            }
+          }
+  
+          // Notify success or partial success
+          if (failedTransactions.length === 0) {
+            alert("Multi-Token Swap Successful!");
+          } else {
+            alert(
+              `Swap partially successful! ${failedTransactions.length} transaction(s) failed. Check console for details.`
+            );
+          }
+        } catch (e) {
+          console.error("Failed to sign or send transactions: ", e);
+        } finally {
+          setSwapping(false)
+        }
+      });
+  };
+
   const handleValueChange = (index, value, direction) => {
     if (direction === "from") {
-      const newFromTokens = [...fromTokens];
-      newFromTokens[index].amount = value;
+        const newFromTokens = [...fromTokens];
+        newFromTokens[index].amount = value;
+      console.log({newFromTokens});
       setFromTokens(newFromTokens);
-      fetchPrice(fromTokens, toTokens, value);
+      console.log({fromTokens});
+      fetchPrice(fromTokens, toTokens);
     } else {
       const newToTokens = [...toTokens];
       newToTokens[index].amount = value;
@@ -124,15 +307,18 @@ export default function NewSwap({ availableTokens }) {
 
   const handleTokenSelect = (token) => {
     if (activeInput === 'from') {
-      if (toTokens.length > 1) {
+      if (toTokens.length > 1 && fromTokens.length === 1) {
         setError("You can only select one token when multiple 'to' tokens are selected.");
         setShowTokenSelection(false);
         return;
       }
       const newToken = { ...token, percentage: fromTokens.length === 0 ? 100 : 0 };
       setFromTokens([...fromTokens, newToken]);
+      fetchPrice(fromTokens, toTokens);
+      
+
     } else if (activeInput === 'to') {
-      if (fromTokens.length > 1) {
+      if (fromTokens.length > 1 && toTokens.length > 1) {
         setError("You can only select one 'to' token when multiple 'from' tokens are selected.");
         setShowTokenSelection(false);
         return;
@@ -141,6 +327,7 @@ export default function NewSwap({ availableTokens }) {
       setToTokens([...toTokens, newToken]);
     }
     setShowTokenSelection(false);
+    
     setError(null);
   };
 
@@ -161,20 +348,22 @@ export default function NewSwap({ availableTokens }) {
       })));
     }
     setError(null);
+    fetchPrice(fromTokens, toTokens);
   };
 
   const handleAddToken = (section) => {
-    if (section === 'from' && toTokens.length > 1) {
+    if (section === 'from' && toTokens.length > 1 && fromTokens.length === 1) {
       setError("You can't add multiple 'from' tokens when multiple 'to' tokens are selected.");
       return;
     }
-    if (section === 'to' && fromTokens.length > 1) {
+    if (section === 'to' && fromTokens.length > 1 && toTokens.length === 1) {
       setError("You can't add multiple 'to' tokens when multiple 'from' tokens are selected.");
       return;
     }
     
     setActiveInput(section);
     setShowTokenSelection(true);
+    fetchPrice(fromTokens, toTokens)
     setError(null);
   };
 
@@ -220,6 +409,7 @@ export default function NewSwap({ availableTokens }) {
           newTokens[tokenIndex].percentage = Math.max(0, remainingPercentage / unlockedTokens.length);
         }
       });
+      
     }
   
     // Ensure the total is exactly 100%
@@ -246,6 +436,8 @@ export default function NewSwap({ availableTokens }) {
     } else {
       setToTokens(newTokens);
     }
+
+    fetchPrice(fromTokens, toTokens)
   };
   
 
@@ -398,8 +590,10 @@ export default function NewSwap({ availableTokens }) {
           <div className="absolute inset-0 rounded-[20px] p-[1px] bg-gradient-to-r from-[#03e1ff] to-[#03e1ff] via-transparent">
             <div className="w-full h-full bg-black rounded-[19px]" />
           </div>
-          <button className="relative w-full bg-black text-white font-semibold rounded-[20px] p-3">
-            SWAP
+          <button 
+          onClick={atomicSwap}
+          className="relative w-full bg-black text-white font-semibold rounded-[20px] p-3">
+            {swapping ? "SWAPPING..." : "SWAP"}
           </button>
         </div>
         

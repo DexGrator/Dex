@@ -1,42 +1,36 @@
-"use client";
-import React, { useEffect, useState } from 'react';
-import SwapComponent from '@/components/SwapComponent';
+import React from 'react';
 import Navbar from '@/components/Navbar';
 import { fetchAvailableTokens } from '@/service/jupiter-service';
 import NewSwap from '@/components/NewSwap';
 
-const SwapPage = () => {
-  const [availableTokens, setAvailableTokens] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+const SwapPage = async () => {
+  // const [availableTokens, setAvailableTokens] = useState([]);
+  // const [loading, setLoading] = useState(true);
+  // const [error, setError] = useState(null);
 
-  useEffect(() => {
-    const loadTokens = async () => {
-      try {
-        const tokens = await fetchAvailableTokens();
-        setAvailableTokens(tokens);
-      } catch (err) {
-        setError(err);
-      } finally {
-        setLoading(false);
-      }
-    };
+  // useEffect(() => {
+  //   const loadTokens = async () => {
+  //     try {
+  //       const tokens = await fetchAvailableTokens();
+  //       setAvailableTokens(tokens);
+  //     } catch (err) {
+  //       setError(err);
+  //     } finally {
+  //       setLoading(false);
+  //     }
+  //   };
 
-    loadTokens();
-  }, []);
+  //   loadTokens();
+  // }, []);
+
+  const availableTokens = await fetchAvailableTokens();
 
   return (
     <div className="bg-gradient-to-b from-gray-900 to-black min-h-screen flex flex-col">
   <Navbar />
   <div className="flex justify-center items-center flex-1">
     <div className="w-full max-w-lg p-4">
-      {loading ? (
-        <div className="text-white text-center">Loading tokens...</div>
-      ) : error ? (
-        <div className="text-red-500 text-center">
-          Error fetching tokens: {error.message}
-        </div>
-      ) : availableTokens.length > 0 ? (
+      {availableTokens.length > 0 ? (
         <div className="flex justify-center">
           <NewSwap availableTokens={availableTokens} />
         </div>
