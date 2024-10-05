@@ -30,16 +30,16 @@ export default function Footer() {
             <ul className="space-y-2">
               <li><Link href="/about" className="text-gray-400 hover:text-white transition-colors">About</Link></li>
               <li><Link href="/how-it-works" className="text-gray-400 hover:text-white transition-colors">How it works</Link></li>
-              <li><Link href="/roadmap" className="text-gray-400 hover:text-white transition-colors">Roadmap</Link></li>
+              <li><Link href="#roadmap" className="text-gray-400 hover:text-white transition-colors scroll-smooth">Roadmap</Link></li>
               <li><Link href="/faq" className="text-gray-400 hover:text-white transition-colors">FAQ</Link></li>
             </ul>
           </div>
           <div>
             <h3 className="text-lg font-semibold mb-4">Community</h3>
             <ul className="space-y-2">
-              <li><Link href="/documentation" className="text-gray-400 hover:text-white transition-colors">Documentation</Link></li>
+              <li><Link href="/documentation" className="text-gray-400 hover:text-white transition-colors">Documentation</Link ></li>
 {/*               <li><Link href="/web3dev" className="text-gray-400 hover:text-white transition-colors">Web3Dev</Link></li> */}
-              <li><Link href="/linktree" className="text-gray-400 hover:text-white transition-colors">LinkTree</Link></li>
+              {/* <li><Link href="/linktree" className="text-gray-400 hover:text-white transition-colors">LinkTree</Link></li> */}
             </ul>
           </div>
         </div>
