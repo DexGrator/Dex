@@ -13,7 +13,7 @@ const Growth = () => {
             
 
                 {/* Text Section */}
-                <div className="mt-4 flex flex-col items-start md:flex-row md:items-center md:space-x-8">
+                <div className="mt-4 mx-4 flex flex-col items-start md:flex-row md:items-center md:space-x-8">
                     <div className="md:w-1/3">
                         <h3 className="text-5xl font-semibold">
                             Numbers are <br />
